@@ -1,0 +1,360 @@
+/* --- Estilos Generales y Fondo --- */
+:root {
+    --primary-color: #6a11cb;
+    --secondary-color: #2575fc;
+    --background-gradient: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    --card-bg: rgba(255, 255, 255, 0.1);
+    --text-color: #f0f0f0;
+    --text-dark-color: #333;
+    --success-color: #28a745;
+    --success-hover: #218838;
+    --border-color: rgba(255, 255, 255, 0.2);
+    --font-family: 'Poppins', sans-serif;
+}
+
+body.horse-race-active {
+    font-family: var(--font-family);
+    background: var(--background-gradient);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.horse-race-active header {
+    width: 100%;
+}
+
+.horse-race-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    width: 100%;
+}
+
+/* --- Contenedor Principal y Tarjetas --- */
+.main-container {
+    width: 100%;
+    max-width: 1200px;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    color: var(--text-color);
+    display: flex; /* Usamos flex para que el contenido se adapte */
+    flex-direction: column;
+    overflow: hidden; /* Para que los bordes redondeados se apliquen bien */
+}
+
+.card-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+}
+
+.card-header h2 {
+    margin: 0;
+    font-weight: 700;
+    text-align: center;
+}
+
+.card-body {
+    padding: 1.5rem;
+    flex-grow: 1;
+}
+
+/* --- Formularios y Botones --- */
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control, .form-select {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.25rem rgba(37, 117, 252, 0.5);
+}
+
+.form-control::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.btn {
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: #fff;
+}
+
+.btn-success:hover {
+    background-color: var(--success-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Listas de Jugadores --- */
+.list-group {
+    border-radius: 8px;
+    overflow: hidden;
+}
+.list-group-item {
+    background-color: transparent;
+    border-color: var(--border-color);
+    color: var(--text-color);
+    padding: 1rem 1.25rem;
+}
+
+#player-list-waiting, #player-list-running {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* --- Vista de la Carrera --- */
+.race-body {
+    display: flex;
+    gap: 2rem;
+}
+
+.race-player-list-container {
+    flex: 0 0 280px;
+    padding-right: 1.5rem;
+    border-right: 1px solid var(--border-color);
+}
+
+.race-track-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* --- Carta Sacada --- */
+#last-card-drawn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.card-display {
+    width: 100px;
+    height: 150px;
+    border-radius: 10px;
+    background-color: #fff;
+    margin: 0 auto;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.card-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* --- Pista de Carreras (Sin cambios en la animación) --- */
+.race-track {
+    position: relative;
+    display: flex;
+    justify-content: space-around;
+    height: 500px;
+    background-color: #2a8c2a; /* Verde césped */
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.horse-lane {
+    position: relative;
+    width: 20%;
+    height: 100%;
+    border-right: 2px dashed rgba(255, 255, 255, 0.3);
+    z-index: 2; /* Asegura que los caballos estén sobre las cartas */
+}
+.horse-lane:last-child { border-right: none; }
+
+.finish-line {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background-image: repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px);
+    z-index: 3; /* Por encima de todo */
+}
+
+.horse {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: bottom 0.5s ease-in-out;
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+.horse-label {
+    font-size: 1rem;
+    font-weight: bold;
+    margin-top: 5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background-color: rgba(0,0,0,0.7);
+    color: #fff;
+}
+
+/* Colores por palo */
+.horse-oros .horse-label { background-color: gold; color: black; }
+.horse-copas .horse-label { background-color: crimson; }
+.horse-espadas .horse-label { background-color: steelblue; }
+.horse-bastos .horse-label { background-color: forestgreen; }
+
+/* --- Vista de Resultados --- */
+#results-body {
+    text-align: center;
+}
+
+#results-body h3 {
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+#distribution-form {
+    max-width: 500px;
+    margin: 2rem auto 0;
+}
+
+#sips-remaining.text-danger {
+    color: #ff6b6b !important;
+    font-weight: 700;
+}
+
+/* --- Animaciones (Sin cambios) --- */
+@keyframes correr {
+    0% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-5px); }
+    100% { transform: translateX(-50%) translateY(0); }
+}
+.horse-run { animation: correr 0.5s infinite; }
+
+@keyframes subeYBaja {
+    0% { transform: translateY(0); }
+    25% { transform: translateY(-10px); }
+    50% { transform: translateY(0); }
+    75% { transform: translateY(10px); }
+    100% { transform: translateY(0); }
+}
+.penalized-horse-animation { animation: subeYBaja 1.5s ease-in-out; }
+
+@keyframes crossFinishLine {
+    0% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-20px); }
+    100% { transform: translateX(-50%) translateY(0); }
+}
+.horse-finish-animation { animation: crossFinishLine 1.5s ease-out forwards; }
+
+/* --- Responsivo --- */
+@media (max-width: 768px) {
+    body.horse-race-active { padding: 10px; }
+    .race-body { flex-direction: column; }
+    .race-player-list-container { border-right: none; border-bottom: 1px solid var(--border-color); padding-right: 0; padding-bottom: 1rem; margin-bottom: 1rem; }
+    .race-track { height: 400px; }
+    .horse { font-size: 2rem; }
+    .card-display { width: 80px; height: 120px; }
+    .btn { width: 100%; }
+    #bet-form-container .row > div { margin-bottom: 1rem; }
+}
+
+/* --- Step Cards --- */
+#step-cards-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column-reverse; /* Para que el primer elemento esté abajo */
+    justify-content: space-evenly; /* Distribuye las cartas a lo largo de la pista */
+    padding-bottom: 12%; /* Ajuste para que no empiecen pegadas al borde */
+    padding-top: 12%;
+    z-index: 1; /* Detrás de los caballos */
+}
+
+.step-card {
+    position: relative;
+    width: 60px;
+    height: 90px;
+    margin: 0 auto;
+    perspective: 1000px;
+}
+
+.step-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.8s;
+    transform-style: preserve-3d;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.step-card.revealed .step-card-inner {
+    transform: rotateY(180deg);
+}
+
+.step-card-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden; /* Safari */
+    backface-visibility: hidden;
+    border-radius: 8px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.step-card-front {
+    background-color: #B71C1C;
+    background-image:
+        repeating-linear-gradient(45deg, #C62828 25%, transparent 25%, transparent 75%, #C62828 75%, #C62828),
+        repeating-linear-gradient(-45deg, #C62828 25%, transparent 25%, transparent 75%, #C62828 75%, #C62828);
+    background-size: 20px 20px;
+}
+
+.step-card-back {
+    background-color: white;
+    transform: rotateY(180deg);
+}

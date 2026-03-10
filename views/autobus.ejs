@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de El Autobús</title>
+    <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/autobus.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+
+    <header class="game-header">
+        <div class="game-card" id="player-list-card">
+            <h2>Jugadores</h2>
+            <ul id="player-list"></ul>
+        </div>
+    </header>
+
+    <main class="game-main-area">
+        <div id="autobus-area">
+            <!-- Las cartas del autobús se generarán aquí -->
+        </div>
+    </main>
+
+    <footer class="player-footer">
+        <h2>Tus Cartas</h2>
+        <div id="player-hand"></div>
+        <div id="player-actions">
+            <!-- Buttons will be rendered here by JS -->
+        </div>
+        <div id="my-drinks-count"></div>
+    </footer>
+
+    <!-- Modals -->
+    <div id="name-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Elige tu nombre</h2>
+            <input type="text" id="name-input" placeholder="Tu nombre...">
+            <button id="join-game-btn" class="btn-custom">Unirse al Juego</button>
+        </div>
+    </div>
+
+    <%- include('partials/game_rules', { gameType: 'autobus' }) %>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/toastify.min.js"></script>
+    <script src="/js/autobus.js"></script>
+</body>
+</html>

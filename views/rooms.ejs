@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Encuentra y únete a salas de juegos beber online en JuegosBeber.es. Diversión multijugador en tiempo real.' %>">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<%= title %>">
+    <meta property="og:description" content="<%= typeof description !== 'undefined' ? description : 'Encuentra y únete a salas de juegos beber online en JuegosBeber.es. Diversión multijugador en tiempo real.' %>">
+    <meta property="og:image" content="https://juegosbeber.es/images/icono.png">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Favicon -->
+    <link rel="icon" href="/images/icono.png" type="image/png">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+    <style>
+        body {
+            background-color: var(--bg-dark);
+            color: #f5f5f5;
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            width: 100%;
+        }
+
+        .container { max-width: 800px; }
+
+        /* Título principal con glow */
+        h1.text-center {
+            font-family: 'Montserrat', sans-serif;
+            text-shadow: 0 0 2px #ff6b81, 0 0 4px #ff4b2b, 0 0 6px #ff6b81;
+        }
+
+        .card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Encabezado de la card con glow y fuente legible */
+        .card-header h2 {
+            font-family: 'Montserrat', sans-serif;
+            color: #f5f5f5;
+            text-shadow: 0 0 2px #ff6b81, 0 0 4px #ff4b2b, 0 0 6px #ff6b81;
+        }
+
+        .list-group-item {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #f5f5f5; /* Fuente clara para que se vea sobre azul */
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Botones adaptados al estilo moderno */
+        .btn-join, .btn-create {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            border: none;
+            color: white;
+            border-radius: 50px;
+            font-weight: bold;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-join:hover, .btn-create:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(255, 75, 43, 0.5);
+        }
+
+        .btn-join, .btn-create {
+            padding: 0.5rem 1.5rem;
+        }
+
+        .btn-create {
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        /* Mensaje cuando no hay salas */
+        #public-rooms-list p {
+            font-family: 'Roboto', sans-serif;
+            color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <%- include('partials/header') %>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4"><%= title %></h1>
+
+        <!-- Salas Públicas -->
+        <div class="card mb-4">
+            <div class="card-header"><h2>Salas Públicas</h2></div>
+            <div class="card-body" id="public-rooms-list">
+                <ul class="list-group" id="room-list-container">
+                    <% if (rooms.length > 0) { %>
+                        <% rooms.forEach(room => { %>
+                            <li class="list-group-item">
+                                <span>
+                                    <%= room.name %> (<%= room.playerCount %> jugadores)
+                                    <% if (room.hasPassword) { %>
+                                        <i class="bi bi-lock-fill ms-2"></i>
+                                    <% } %>
+                                </span>
+                                <button class="btn btn-join" onclick="handleJoinRoom('<%= room.id %>', <%= room.hasPassword %>)">Unirse</button>
+                            </li>
+                        <% }) %>
+                    <% } else { %>
+                        <p>No hay salas disponibles. ¡Crea una!</p>
+                    <% } %>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Crear Sala -->
+        <div class="row">
+            <div class="col-12">
+                <a href="/admin/<%= gameType %>" class="btn btn-create btn-lg">+ Crear Nueva Sala</a>
+            </div>
+        </div>
+
+        <!-- Sección de Reglas e Instrucciones (Collapsible) -->
+        <div class="card mt-5 mb-5">
+            <div class="card-header bg-dark text-white border-secondary d-flex justify-content-between align-items-center" 
+                 style="cursor: pointer;" 
+                 data-bs-toggle="collapse" 
+                 data-bs-target="#rulesCollapse" 
+                 aria-expanded="false" 
+                 aria-controls="rulesCollapse">
+                <h3 class="mb-0 fs-5" style="font-family: 'Montserrat', sans-serif; color: #ff6b81;">
+                    <i class="bi bi-book-half me-2"></i> Reglas e Instrucciones
+                </h3>
+                <i class="bi bi-chevron-down text-light"></i>
+            </div>
+            
+            <div class="collapse show" id="rulesCollapse">
+                <div class="card-body bg-secondary bg-opacity-10 text-light" id="game-rules-container">
+                    <%- include('partials/game_rules', { gameType: gameType }) %>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center py-4 mt-auto border-top border-secondary">
+            <p class="mb-2 text-muted">&copy; 2026 JuegosBeber.es</p>
+            <div>
+                <a href="/terms" class="text-decoration-none text-light mx-2 hover-link">Términos</a>
+                <span class="text-muted">|</span>
+                <a href="/privacy" class="text-decoration-none text-light mx-2 hover-link">Privacidad</a>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- Bootstrap Bundle with Popper (Required for Collapse) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const gameType = '<%= gameType %>';
+    </script>
+    <script src="/js/rooms.js"></script>
+</body>
+</html>
