@@ -1,0 +1,101 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+    <style>
+        body { background-color: var(--bg-dark); color: var(--text-light); }
+        .container { max-width: 600px; }
+        .card { background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <div class="admin-wrapper">
+        <div class="container mt-5">
+        <div class="card">
+            <div class="card-header">
+                <h1><%= title %></h1>
+            </div>
+            <div class="card-body">
+                <form id="create-race-form">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nombre de la Sala/Carrera</label>
+                        <input type="text" class="form-control" id="name" placeholder="Carrera Loca #1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" placeholder="(Dejar en blanco para sala pública)">
+                    </div>
+                    <div class="mb-3">
+                        <label for="maxBet" class="form-label">Apuesta Máxima (tragos)</label>
+                        <input type="number" class="form-control" id="maxBet" value="10" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="prizeMultiplier" class="form-label">Multiplicador de Premio</label>
+                        <input type="number" class="form-control" id="prizeMultiplier" value="2" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Crear Sala de Carrera</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-5">
+            <%- include('partials/game_rules', { gameType: 'horse-race' }) %>
+        </div>
+    </div>
+</div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const gameType = '<%= gameType %>';
+
+        document.getElementById('create-race-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            let userUUID = localStorage.getItem('userUUID');
+            if (!userUUID) {
+                userUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                localStorage.setItem('userUUID', userUUID);
+            }
+            
+            const payload = {
+                name: document.getElementById('name').value,
+                password: document.getElementById('password').value,
+                creatorId: userUUID, // <-- AÑADIDO
+                settings: {
+                    maxBet: parseInt(document.getElementById('maxBet').value),
+                    prizeMultiplier: parseInt(document.getElementById('prizeMultiplier').value),
+                }
+            };
+
+            const response = await fetch(`/api/rooms/${gameType}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const { roomId } = await response.json();
+                window.location.href = `/game/${gameType}/${roomId}`;
+            } else {
+                alert('Error al crear la sala.');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<div class="container mt-5 mb-5 p-4" style="background: rgba(0,0,0,0.8); border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0;">
+    <h3 class="text-center mb-4" style="color: #ff6b81; font-family: 'Montserrat', sans-serif;">
+        <i class="bi bi-info-circle-fill me-2"></i> Información y Reglas del Juego
+    </h3>
+
+    <% if (gameType === 'horse-race') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a la Carrera de Caballos?</h4>
+            <p>La <strong>Carrera de Caballos</strong> es un emocionante juego de azar y estrategia simulada donde los jugadores apuestan por el palo de la baraja que creen que ganará.</p>
+            
+            <h5 class="mt-3 text-white">Reglas Básicas:</h5>
+            <ul>
+                <li><strong>Apuestas:</strong> Antes de comenzar la carrera, cada jugador debe elegir un "caballo" (Oros, Copas, Espadas o Bastos) y apostar una cantidad de "tragos" o puntos.</li>
+                <li><strong>El Circuito:</strong> Cuatro ases (o reyes) se alinean en la salida. Se colocan cartas boca abajo a lo largo del lateral de la "pista" para marcar los niveles o escalones.</li>
+                <li><strong>Mecánica:</strong> El narrador o el sistema voltea cartas del mazo una a una. Si sale una carta de Oros, el caballo de Oros avanza una posición.</li>
+                <li><strong>El Muro (Penalización):</strong> Cuando todos los caballos han superado un cierto nivel (marcado por las cartas laterales), la carta lateral se voltea. El palo que coincida con esa carta debe <strong>retroceder una posición</strong>. ¡Esto puede cambiar el líder en el último segundo!</li>
+                <li><strong>Ganador:</strong> El primer caballo en cruzar la línea de meta gana.</li>
+            </ul>
+
+            <h5 class="mt-3 text-white">Reparto de Premios:</h5>
+            <p>Si tu caballo gana, recuperas tu apuesta y puedes "mandar" una cantidad de tragos a otros jugadores basada en las probabilidades y la configuración de la sala. Si pierdes, debes beber la cantidad que apostaste.</p>
+        </article>
+
+    <% } else if (gameType === 'voting') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a Votaciones?</h4>
+            <p><strong>Votaciones</strong> es el juego social definitivo para grupos de amigos. Descubre qué piensan realmente los demás sobre ti y sobre situaciones hipotéticas absurdas.</p>
+            
+            <h5 class="mt-3 text-white">Dinámica del Juego:</h5>
+            <ol>
+                <li><strong>La Pregunta:</strong> El administrador de la sala o el juego propone una pregunta o escenario. Ejemplos: <em>"¿Quién es más probable que sobreviva a un apocalipsis zombie?"</em> o <em>"¿Quién liga más?"</em>.</li>
+                <li><strong>Voto Secreto:</strong> Todos los jugadores votan por uno de los presentes en la sala que mejor encaje con la descripción.</li>
+                <li><strong>Revelación:</strong> Al terminar el tiempo, se muestran los resultados.</li>
+            </ol>
+
+            <h5 class="mt-3 text-white">Consecuencias:</h5>
+            <p>La persona (o personas) que reciban más votos deben cumplir la penitencia acordada (generalmente, beber). También existen variantes donde la "minoría" bebe, para premiar el pensamiento grupal.</p>
+        </article>
+
+    <% } else if (gameType === 'roulette') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a la Ruleta?</h4>
+            <p>La <strong>Ruleta</strong> adapta la emoción clásica del casino a un juego de beber seguro y divertido. Aquí no pierdes dinero, ¡solo ganas diversión (y tragos)!</p>
+            
+            <h5 class="mt-3 text-white">Instrucciones:</h5>
+            <ul>
+                <li><strong>Fichas:</strong> Todos los jugadores empiezan con una cantidad igual de puntos o "sorbos".</li>
+                <li><strong>Tablero de Apuestas:</strong> Puedes colocar tus fichas en números individuales (0-36), colores (Rojo/Negro), pares/impares, o rangos (1-18, 19-36).</li>
+                <li><strong>La Tirada:</strong> Una vez cerradas las apuestas, la bola gira. Si cae en tu selección, ganas puntos multiplicados según la dificultad de la apuesta.</li>
+            </ul>
+
+            <h5 class="mt-3 text-white">El Objetivo:</h5>
+            <p>El objetivo es acumular la mayor cantidad de puntos posible. Luego, en la <strong>Fase de Reparto</strong>, los ganadores pueden gastar sus puntos acumulados para "comprar" tragos y enviárselos a otros jugadores. Si te quedas a cero, ¡quedas eliminado o debes cumplir una gran penitencia para volver a entrar!</p>
+        </article>
+
+    <% } else if (gameType === 'pyramid') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a La Pirámide?</h4>
+            <p><strong>La Pirámide</strong> es un juego de cartas clásico que mezcla memoria, suerte y la capacidad de farolear (mentir con seguridad).</p>
+            
+            <h5 class="mt-3 text-white">Desarrollo del Juego:</h5>
+            <ol>
+                <li><strong>Tu Mano:</strong> Recibes cartas que solo tú puedes ver inicialmente. Debes <strong>memorizarlas</strong> bien.</li>
+                <li><strong>La Pirámide:</strong> En la mesa hay una estructura piramidal de cartas boca abajo. Se van revelando fila por fila.</li>
+                <li><strong>Emparejar:</strong> Si una carta revelada en la pirámide coincide con el valor de una de tus cartas, puedes mandar beber a alguien.</li>
+                <li><strong>Farolear:</strong> Puedes "fingir" que tienes la carta incluso si no la tienes. Elige una víctima y mándale beber.</li>
+            </ol>
+
+            <h5 class="mt-3 text-white">Desafíos ("¡Miento!"):</h5>
+            <p>La víctima puede beber sin rechistar o puede desafiarte diciendo "¡Mientes!".</p>
+            <ul>
+                <li>Si te desafían y <strong>decías la verdad</strong> (tenías la carta), la víctima bebe el doble.</li>
+                <li>Si te desafían y <strong>mentías</strong>, tú bebes el doble.</li>
+            </ul>
+        </article>
+
+    <% } else if (gameType === 'autobus') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a El Autobús?</h4>
+            <p><strong>El Autobús</strong> es un juego de pura suerte y tensión. El objetivo es simple: acertar las predicciones sobre las cartas para no acumular tragos.</p>
+            
+            <h5 class="mt-3 text-white">Las 4 Fases:</h5>
+            <ol>
+                <li><strong>Color:</strong> ¿La carta será Roja o Negra? (Fallo: 1 trago).</li>
+                <li><strong>Alto o Bajo:</strong> ¿La siguiente carta será mayor o menor que la anterior? (Fallo: 2 tragos).</li>
+                <li><strong>Entre o Fuera:</strong> ¿El valor de la carta estará entre tus dos cartas anteriores o fuera de ese rango? (Fallo: 3 tragos).</li>
+                <li><strong>El Palo:</strong> ¿De qué palo será la carta? (Oros, Copas, Espadas, Bastos). (Fallo: 4 tragos).</li>
+            </ol>
+            
+            <p class="mt-2">Si fallas en la última fase, a menudo la regla de la casa es "subirse al autobús", lo que significa volver a empezar desde la primera fase. ¡Solo los más afortunados logran bajarse!</p>
+        </article>
+
+    <% } else if (gameType === 'lamente') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a La Mente?</h4>
+            <p><strong>La Mente</strong> (inspirado en "The Mind") es una experiencia única. Es un juego cooperativo donde el grupo debe convertirse en una sola mente pensante.</p>
+            
+            <h5 class="mt-3 text-white">El Reto:</h5>
+            <p>El grupo debe jugar todas sus cartas en orden ascendente (del 1 al 100) en una pila central.</p>
+            
+            <h5 class="mt-3 text-white">La Regla de Oro:</h5>
+            <p><strong>No se puede hablar.</strong> No podéis deciros qué números tenéis ni hacer señas explícitas. Debéis "sentir" el paso del tiempo. Si tienes un 5, juégalo rápido. Si tienes un 90, espera mucho.</p>
+            
+            <p>Si alguien juega una carta y otro jugador tenía una más baja en su mano, el grupo pierde una vida o recibe una penalización. ¡Tratad de completar todos los niveles!</p>
+        </article>
+
+    <% } else if (gameType === 'imitador') { %>
+        <article>
+            <h4 style="color: #ff4b2b;">¿Cómo jugar a El Imitador?</h4>
+            <p><strong>El Imitador</strong> es un juego de risas garantizadas donde tendrás que ponerte en la piel de tus amigos.</p>
+            
+            <h5 class="mt-3 text-white">Mecánica:</h5>
+            <ul>
+                <li>Al comenzar, el juego asigna secretamente a cada jugador un "Objetivo" (otro jugador de la sala).</li>
+                <li>Aparecerán preguntas en la pantalla.</li>
+                <li>Debes responder a las preguntas <strong>como si fueras tu Objetivo</strong>. Imita su forma de hablar, sus opiniones o sus chistes internos.</li>
+                <li>Al final de la ronda, se leen las respuestas y todos deben votar para adivinar quién estaba imitando a quién.</li>
+            </ul>
+            <p>Los mejores imitadores (los que no son descubiertos o los que más risas provocan) ganan puntos, mientras que los demás beben.</p>
+        </article>
+    <% } %>
+</div>

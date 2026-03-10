@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear Votación</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+    <style>
+        body { background-color: var(--bg-dark); color: var(--text-light); }
+        .container { max-width: 700px; }
+        .card { background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .option-input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .option-input-group input { flex-grow: 1; }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <div class="admin-wrapper">
+        <div class="container mt-5 mb-5">
+        <div class="card shadow">
+            <div class="card-header">
+                <h1>Crear Nueva Votación</h1>
+            </div>
+            <div class="card-body">
+                <form id="create-voting-form">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Título de la Votación</label>
+                        <input type="text" class="form-control" id="name" placeholder="¿Quién es el más...?" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" placeholder="(Dejar en blanco para sala pública)">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Opciones de Voto</label>
+                        <div id="options-container">
+                            <div class="option-input-group">
+                                <input type="text" class="form-control" name="options" required>
+                                <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                            </div>
+                            <div class="option-input-group">
+                                <input type="text" class="form-control" name="options" required>
+                                <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                            </div>
+                        </div>
+                        <button type="button" id="add-option-btn" class="btn btn-secondary btn-sm mt-2">+ Añadir Opción</button>
+                    </div>
+                    <div class="mb-3">
+                        <label for="duration" class="form-label">Duración (segundos)</label>
+                        <input type="number" class="form-control" id="duration" value="60" min="1" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Crear Sala de Votación</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-5">
+            <%- include('partials/game_rules', { gameType: 'voting' }) %>
+        </div>
+    </div>
+</div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const gameType = 'voting';
+
+        // Function to attach keydown listener to option inputs
+        function attachKeydownListenerToOptions(inputElement) {
+            inputElement.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Prevent form submission
+
+                    const currentInput = e.target;
+                    const optionsInputs = Array.from(document.getElementsByName('options'));
+                    const currentIndex = optionsInputs.indexOf(currentInput);
+
+                    let nextInput = null;
+
+                    // Try to find the next empty input field
+                    for (let i = currentIndex + 1; i < optionsInputs.length; i++) {
+                        if (optionsInputs[i].value.trim() === '') {
+                            nextInput = optionsInputs[i];
+                            break;
+                        }
+                    }
+
+                    if (nextInput) {
+                        nextInput.focus(); // Focus on the next empty field
+                    } else {
+                        // If no next empty field, add a new one
+                        document.getElementById('add-option-btn').click();
+                        // The newly added input will be the last one
+                        setTimeout(() => {
+                            const newOptionsInputs = Array.from(document.getElementsByName('options'));
+                            newOptionsInputs[newOptionsInputs.length - 1].focus();
+                        }, 0); // Use setTimeout to allow DOM to update
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Attach keydown listener to initial inputs
+            document.querySelectorAll('input[name="options"]').forEach(attachKeydownListenerToOptions);
+
+            document.getElementById('add-option-btn').addEventListener('click', () => {
+                const container = document.getElementById('options-container');
+                const newOption = document.createElement('div');
+                newOption.className = 'option-input-group';
+                newOption.innerHTML = `
+                    <input type="text" class="form-control" name="options" required>
+                    <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                `;
+                container.appendChild(newOption);
+                
+                // Attach listener to the newly created input and focus it
+                const newAddedInput = newOption.querySelector('input[name="options"]');
+                attachKeydownListenerToOptions(newAddedInput);
+                newAddedInput.focus();
+            });
+
+            document.getElementById('options-container').addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-option-btn')) {
+                    if (document.getElementsByName('options').length > 2) {
+                        e.target.closest('.option-input-group').remove();
+                    } else {
+                        alert('Debe haber al menos dos opciones.');
+                    }
+                }
+            });
+
+            document.getElementById('create-voting-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const updateRoomId = urlParams.get('update_room_id');
+
+                let userUUID = localStorage.getItem('userUUID');
+                if (!userUUID) {
+                    userUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                        return v.toString(16);
+                    });
+                    localStorage.setItem('userUUID', userUUID);
+                }
+
+                const options = Array.from(document.getElementsByName('options')).map(input => input.value).filter(val => val.trim() !== '');
+                if (options.length < 2) {
+                    return alert('Debes proporcionar al menos dos opciones válidas.');
+                }
+
+                const payload = {
+                    name: document.getElementById('name').value,
+                    password: document.getElementById('password').value,
+                    creatorId: userUUID,
+                    settings: {
+                        options: options,
+                        duration: parseInt(document.getElementById('duration').value)
+                    }
+                };
+
+                if (updateRoomId) {
+                    payload.update_room_id = updateRoomId;
+                }
+
+                const response = await fetch(`/api/rooms/${gameType}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const { roomId } = await response.json();
+                    window.location.href = `/game/${gameType}/${roomId}`;
+                } else {
+                    alert('Error al crear la sala de votación.');
+                }
+            });
+
+            // Pre-fill form if update_room_id is present
+            const urlParams = new URLSearchParams(window.location.search);
+            const updateRoomId = urlParams.get('update_room_id');
+
+            if (updateRoomId) {
+                const lastVotingSettings = JSON.parse(localStorage.getItem('lastVotingSettings'));
+                if (lastVotingSettings) {
+                    document.getElementById('name').value = lastVotingSettings.name;
+                    document.getElementById('duration').value = lastVotingSettings.duration;
+
+                    const optionsContainer = document.getElementById('options-container');
+                    optionsContainer.innerHTML = ''; // Clear existing options
+
+                    lastVotingSettings.options.forEach(optionText => {
+                        const newOption = document.createElement('div');
+                        newOption.className = 'option-input-group';
+                        newOption.innerHTML = `
+                            <input type="text" class="form-control" name="options" value="${escapeHTML(optionText)}" required>
+                            <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                        `;
+                        optionsContainer.appendChild(newOption);
+                        attachKeydownListenerToOptions(newOption.querySelector('input[name="options"]'));
+                    });
+                    // Ensure at least two options if original had less
+                    while (document.getElementsByName('options').length < 2) {
+                        document.getElementById('add-option-btn').click();
+                    }
+                }
+            }
+        });
+
+        // Helper to escape HTML for pre-filling values
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

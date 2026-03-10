@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="icon" href="/images/icono.png" type="image/png">
+
+    <!-- Custom CSS (JuegosBeber main stylesheet) -->
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- La Mente specific CSS -->
+    <link rel="stylesheet" href="/css/lamente.css">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <div class="lamente-wrapper">
+        <div class="container">
+        <!-- Pantalla de Login -->
+        <div id="login-screen" class="card">
+            <h1>La Mente</h1>
+            <h2>Introduce tu nombre para empezar</h2>
+            <div class="input-group">
+                <input type="text" id="name-input" placeholder="Tu nombre...">
+            </div>
+            <button id="join-button" class="btn-primary">Entrar a la Sala</button>
+        </div>
+
+        <!-- Pantalla de Espera -->
+        <div id="waiting-screen" class="card hidden">
+            <h1>Sala de Espera</h1>
+            <h2 id="countdown-timer">Esperando a que el admin inicie la partida...</h2>
+            <h3>Jugadores Conectados:</h3>
+            <div id="player-list">
+                <!-- La lista de jugadores se llenará aquí -->
+            </div>
+        </div>
+
+        <!-- Pantalla de Juego -->
+        <div id="game-screen" class="card hidden">
+            <h1>Tu Número</h1>
+            <div class="code-display">
+                <span id="player-number" class="code">?</span>
+            </div>
+            <h3 id="game-info">Rango: 1-100 | Faltan: ? jugadores</h3>
+            <button id="voy-button" class="btn-secondary">VOY</button>
+        </div>
+
+        <!-- Pantalla de Fin de Partida -->
+        <div id="game-over-screen" class="card hidden">
+            <h1 id="game-over-title">¡Habéis perdido!</h1>
+            <h2 id="game-over-reason"></h2>
+            <h3>Resultados:</h3>
+            <div id="results-list">
+                <!-- La lista de resultados se llenará aquí -->
+            </div>
+            <h2 id="next-game-countdown"></h2>
+        </div>
+        
+        <%- include('partials/game_rules', { gameType: 'lamente' }) %>
+    </div>
+</div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/lamente.js"></script>
+</body>
+</html>

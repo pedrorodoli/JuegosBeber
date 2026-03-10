@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  codeserver-juegosbeber:
+    image: codercom/code-server:latest
+    container_name: codeserver-juegosbeber
+    environment:
+      - PASSWORD=JuegoxBeber69-
+      - TZ=Europe/Madrid
+    volumes:
+      - C:/Users/Pedro/Desktop/JuegosBeber:/home/coder/project:rw
+      - codeserver-juegosbeber-data:/home/coder/.local/share/code-server
+    ports:
+      - "3334:8080"
+    restart: unless-stopped
+
+volumes:
+  codeserver-juegosbeber-data:

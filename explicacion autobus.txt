@@ -1,0 +1,18 @@
+vale ya está. Vamos con el funcionamiento. Primero de todo, lo de acciones no quiero que salga, eso es solo de
+  la piramide. Te cuento como funciona el autobús. Los jugadores empiezan con 0 cartas, y se va de 1 en 1, hasta
+  que 1 no acaba su turno no pasa al siguiente, y irá siempre en el mismo orden. se mostrará el mazo de cartas
+  boca abajo y se le preguntará al jugador si la carta va a ser roja o negra, tendrá esos 2 botones y encima de
+  los botones esa pregunta "¿Rojo o Negro?". Se sacará una carta y se mostrará durante 3 segundos, acierte o no.
+  Si ha fallado, tras pasar lo 3 segundos se mostrará un mensaje en pantalla a ese jugador que pondrá: "Has
+  fallado, bebes 1 trago". Si acierta, esa carta se sumará a sus cartas, y tras esos 3 segundos se le hará otra
+  pregunta. Mismo procedimiento, pero ahora la pregunta es "Mayor o Menor" y el jugador tras elegir, se sacará una
+   carta, y si es mayor que la que ha conseguido en la anterior ronda, y ha elegido mayor, habrá ganado y esa
+  carta se sumará a sus cartas tras pasar los 3 segundos. Sino, lo mismo, mensaje de "Has fallado, bebes 2
+  tragos", al estar en el segundo nivel, y se limpiará todas las cartas que tenía y pasará al turno del siguiente
+  jugador. Luego mismo procedimiento pero la pregunta será "¿El valor de tu tercera carta está entre las dos
+  primeras o fuera de ese rango?", y los botones serán "Dentro" y "Fuera". Mismo procedimiento, pero en caso de
+  fallar son 3 tragos. Y por ultimo la pregunta será "¿Cuál es el palo de la última carta?", y botones con todos
+  los palos. Si falla 4 tragos y sin cartas hasta que vuelva su turno y vuelva a empezar por la carta de rojo o
+  negro. Y si gana saldrá un mensaje de que ese jugador ya ha ganado, y no volverá a ser su turno hasta que acabe
+  la partida. Cuando un jugador que no seas tú esté jugando, verás lo mismo que él menos los botones de las
+  opciones

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crear Sala - La Pirámide</title>
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <div class="admin-wrapper">
+        <div class="admin-container mt-5">
+        <h1>Crear Sala de Pirámide</h1>
+
+        <div class="admin-card">
+            <form id="create-room-form">
+                <div class="form-group">
+                    <label for="room-name">Nombre de la Sala</label>
+                    <input type="text" id="room-name" placeholder="La Gran Pirámide" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña (opcional)</label>
+                    <input type="password" id="password">
+                </div>
+                <div class="form-group">
+                    <label for="pyramid-levels">Niveles de la Pirámide (3-6)</label>
+                    <input type="number" id="pyramid-levels" min="3" max="6" value="4" required>
+                </div>
+                <button type="submit" class="btn-custom">Crear Sala</button>
+            </form>
+        </div>
+
+        <div class="mt-5">
+            <%- include('partials/game_rules', { gameType: 'pyramid' }) %>
+        </div>
+    </div>
+</div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Helper function to get or generate user UUID
+        function getUserUuid() {
+            let uuid = localStorage.getItem('userUuid');
+            if (!uuid) {
+                uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                localStorage.setItem('userUuid', uuid);
+            }
+            return uuid;
+        }
+
+        document.getElementById('create-room-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const roomName = document.getElementById('room-name').value;
+            const password = document.getElementById('password').value;
+            const levels = document.getElementById('pyramid-levels').value;
+            const creatorId = getUserUuid();
+
+            const response = await fetch('/api/rooms/pyramid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: roomName,
+                    password: password,
+                    creatorId: creatorId,
+                    settings: {
+                        levels: parseInt(levels, 10)
+                    }
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Redirect admin to the game page, they will join like a normal player
+                window.location.href = `/game/pyramid/${data.roomId}`;
+            } else {
+                const error = await response.json();
+                alert(`Error al crear la sala: ${error.message}`);
+            }
+        });
+    </script>
+    <style>
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: .5rem;
+            font-size: 1.1rem;
+            text-align: left;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #555;
+            background: rgba(0,0,0,0.2);
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+    </style>
+</body>
+</html>

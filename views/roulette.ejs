@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>Ruleta de la Suerte</title>
+    <link href="/css/roulette.css" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+    <style>
+        /* Custom styles for overlays and UI elements not in the original CSS */
+        body { background-color: #016D29; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        header { width: 100%; }
+        .overlay-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .card-view { background-color: #018d36; border: 2px solid #d3b201; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .card-view h2 { color: #ffec00; margin-top: 0; }
+        .card-view input { padding: 10px; border-radius: 5px; border: 1px solid #d3b201; margin: 10px 0; }
+        .card-view button { background-color: #d3b201; color: #000; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
+        #game-wrapper { display: none; flex: 1; position: relative; /* Hide game until player joins */ }
+        #container { padding-top: 20px; margin: 0 auto; } /* Centered roulette */
+
+        #player-sidebar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 220px;
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #d3b201;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #player-sidebar h3 { margin-top: 0; color: #ffec00; border-bottom: 1px solid #d3b201; padding-bottom: 10px; }
+        #player-sidebar ul { list-style: none; padding: 0; margin: 0; }
+        #player-sidebar li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #444; }
+        #player-sidebar .player-name { font-weight: bold; }
+        #player-sidebar .player-sips { color: #ffec00; }
+
+        #admin-controls button { width: 100%; margin-top: 15px; background-color: #28a745; color: white; }
+        #distribution-info { margin: 15px 0; font-size: 1.1em; text-align: left; }
+        #distribution-info div { margin-bottom: 5px; }
+        #turn-notifications { margin-top: 15px; color: #2ecc71; font-weight: bold; }
+        #turn-notifications div { margin-bottom: 5px; }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <!-- 0. Vista de Lobby -->
+    <div id="lobby-view" class="overlay-container">
+        <div class="card-view">
+            <h2>Ruleta de la Suerte</h2>
+            <form id="join-lobby-form">
+                <input type="text" id="playerName" placeholder="Escribe tu nombre" required autocomplete="off">
+                <button type="submit">Unirse a la Sala</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main wrapper for the game -->
+    <div id="game-wrapper">
+        <div id="game-container"></div>
+
+        <div id="player-sidebar">
+            <h3>Jugadores</h3>
+            <ul id="player-list"></ul>
+            <div id="betting-timer" style="text-align: center; font-size: 1.2em; margin-top: 15px; color: #ffec00;"></div>
+            <div id="turn-notifications"></div>
+            <div id="admin-controls" style="display: none;">
+                <hr>
+                <button id="start-game-btn">Empezar Partida</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vista de Reparto de Tragos -->
+    <div id="distribution-view" style="display: none;" class="overlay-container">
+        <div class="card-view">
+            <h2>Repartir Tragos</h2>
+            <p>Usa tus puntos para repartir tragos (1 Trago = 20 Puntos).</p>
+            <div id="distribution-info">
+                <div>Tu Saldo: <span id="dist-total-sips">0</span> pts</div>
+                <div>Saldo Restante: <span id="dist-remaining-sips">0</span> pts</div>
+            </div>
+            <div id="distribution-form">
+                <ul id="distribution-player-list"></ul>
+                <button id="distribute-btn">Repartir</button>
+                <button id="skip-distribution-btn">Omitir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vista de Sin Puntos -->
+    <div id="out-of-points-view" style="display: none;" class="overlay-container">
+        <div class="card-view">
+            <h2>¡Sin Puntos!</h2>
+            <p>Bebe 5 tragos para volver a jugar.</p>
+            <p>(Estarás fuera durante esta ronda)</p>
+        </div>
+    </div>
+
+    <%- include('partials/game_rules', { gameType: 'roulette' }) %>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script src="/js/roulette.js"></script>
+</body>
+</html>

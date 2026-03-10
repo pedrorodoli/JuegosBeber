@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="icon" href="/images/icono.png" type="image/png">
+
+    <!-- Custom CSS (JuegosBeber main stylesheet) -->
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- La Mente specific CSS -->
+    <link rel="stylesheet" href="/css/lamente.css">
+    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
+    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
+     crossorigin="anonymous"></script>
+</head>
+<body class="bg-dark text-light">
+    <%- include('partials/header') %>
+    <div class="admin-wrapper">
+        <div class="container mt-5 mb-5">
+        <h1 class="text-center mb-4"><%= title %></h1>
+
+        <!-- Screen 1: Create Room -->
+        <div id="create-room-screen">
+            <div class="card shadow p-4" style="background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h2 class="mb-4">Crear Nueva Sala</h2>
+                <form id="create-room-form">
+                    <div class="mb-3">
+                        <label for="admin-name" class="form-label">Tu Nombre de Jugador</label>
+                        <input type="text" class="form-control" id="admin-name" required placeholder="Introduce tu nombre">
+                    </div>
+                    <div class="mb-3">
+                        <label for="room-name" class="form-label">Nombre de la Sala</label>
+                        <input type="text" class="form-control" id="room-name" required value="Sala de La Mente">
+                    </div>
+                    <div class="mb-3">
+                        <label for="room-password" class="form-label">Contraseña (opcional)</label>
+                        <input type="text" class="form-control" id="room-password" placeholder="Deja en blanco para una sala pública">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">Crear y Unirse a la Sala</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Screen 2: Admin Panel (hidden by default) -->
+        <div id="admin-panel-screen" class="hidden">
+            <div class="card shadow p-4 mb-4" style="background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h1 id="admin-room-name" class="h3 mb-3">Panel de Admin</h1>
+                <h2 class="h5 mb-4 text-muted">Configura la partida</h2>
+                
+                <div class="mb-3">
+                    <label for="min-range" class="form-label">Rango Mínimo</label>
+                    <input type="number" class="form-control" id="min-range" value="1">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="max-range" class="form-label">Rango Máximo</label>
+                    <input type="number" class="form-control" id="max-range" value="100">
+                </div>
+
+                <button id="start-game-button" class="btn btn-success btn-lg w-100 fw-bold">Iniciar Partida</button>
+            </div>
+            <div class="card shadow p-4" style="background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h2 class="h5 mb-3">Jugadores en la sala</h2>
+                <div id="admin-player-list" class="list-group"></div>
+            </div>
+        </div>
+
+        <div class="mt-5">
+            <%- include('partials/game_rules', { gameType: 'lamente' }) %>
+        </div>
+    </div>
+</div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/admin-lamente.js"></script>
+</body>
+</html>

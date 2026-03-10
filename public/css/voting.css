@@ -1,0 +1,223 @@
+
+/* Styles for the voting options grid */
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Default to single column (column-layout) */
+    gap: 1rem; /* Spacing between options */
+    padding: 0 1rem; /* Add some horizontal padding */
+    max-width: 900px; /* Limit width for better readability */
+    margin: 0 auto;
+    background-color: transparent; /* Ensure options grid has transparent background */
+}
+
+.options-grid.two-column-layout {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Two columns for 8+ options, more flexible min-width */
+}
+
+/* Styles for individual voting option buttons with progress bar */
+.option-btn-progress {
+    position: relative;
+    background-color: rgba(255, 255, 255, 0.05); /* Make the "empty" part slightly darker/different */
+    padding: 1rem 1.5rem; /* Adjusted padding */
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 60px;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 2px solid transparent; /* Default border */
+    width: 100%; /* Ensure options take full width of their grid cell */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.option-btn-progress.voted {
+    border: 2px solid var(--accent-pastel); /* Highlight voted option */
+    box-shadow: 0 0 15px var(--accent-pastel);
+}
+
+/* Removed @keyframes pulse-progress as it's no longer desired for voting buttons */
+
+.option-btn-progress .progress-bar {
+    background-color: var(--primary-pastel); /* Use primary pastel color */
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 10px;
+    z-index: 1;
+    transition: width 0.5s ease-in-out; /* Smooth transition for width changes */
+    min-width: 0%;
+    /* Removed animation: pulse-progress */
+}
+
+.option-btn-progress .option-content {
+    position: relative;
+    z-index: 2;
+    width: 100%; /* Ensure content takes full width */
+    display: flex;
+    justify-content: space-between; /* Space out name and percentage */
+    align-items: center;
+    color: var(--text-light); /* Ensure text color is visible */
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
+}
+
+/* Removed .option-btn-progress:hover styles */
+
+.option-btn-progress:active {
+    transform: scale(0.98);
+}
+
+.option-name{font-size:1.1rem;font-weight:600; color: var(--text-light); text-shadow: 1px 1px 2px rgba(0,0,0,0.7);}
+.vote-percentage{font-size:.9rem;opacity:.8;margin-top:.25rem; color: var(--text-light); text-shadow: 1px 1px 2px rgba(0,0,0,0.7);}
+
+/* Styles for the top reverse countdown progress bar */
+.countdown-progress-container {
+    width: 100%;
+    height: 30px; /* Height of the progress bar */
+    background-color: var(--bg-dark); /* Background of the container */
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.countdown-progress-bar {
+    height: 100%;
+    width: 100%; /* Starts full */
+    background-color: var(--primary-pastel); /* Color of the progress bar */
+    border-radius: 15px;
+    position: absolute;
+    top: 0;
+    right: 0; /* Aligns to the right for reverse effect */
+    transition: width 1s linear; /* Smooth transition for width changes */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dark); /* Text color for the countdown */
+    font-weight: bold;
+    font-size: 1rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+}
+
+.countdown-text {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light); /* Ensure text is visible over the bar */
+    font-weight: bold;
+    font-size: 1rem;
+    z-index: 2; /* Above the progress bar */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
+}
+
+/* Ensure full height and background for voting page */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+body {
+    background-color: var(--bg-dark); /* General background for the page */
+    font-family: var(--font-body);
+    color: var(--text-light); /* Default text color */
+}
+
+.main-container {
+    width: 100%;
+    height: 100%; /* Take full height */
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#game-voting {
+    background-color: var(--bg-dark); /* Set background for voting section */
+    padding: 2rem 1rem; /* Add some padding */
+    border-radius: 15px; /* Rounded corners */
+    margin-top: 20px; /* Space from top */
+    width: 100%; /* Take full width of main-container */
+    max-width: 900px; /* Match options-grid max-width */
+    box-sizing: border-box;
+}
+
+        /* Contenedor de opciones de voto */
+        #game-container {
+            display: grid;
+            gap: 1rem;
+            justify-items: center;
+            align-items: center;
+            margin-top: 2rem;
+            padding: 0 1rem; /* Add some horizontal padding */
+        }
+
+#result-overlay {
+    display: none; /* Hide by default */
+}
+
+/* Button Styles (for 'Iniciar Votación' and similar) */
+.btn {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    margin: 0.25rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
+}
+
+/* Removed .btn:hover styles as per request */
+
+.btn-primary {
+    background-color: var(--primary-pastel);
+    color: var(--text-dark);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-pastel); /* Slightly different hover color */
+}
+
+.btn-lg {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+}
+
+/* General text styling for titles within voting section */
+#game-voting h1, #game-voting h2, #game-voting h3, #game-voting h4, #game-voting h5, #game-voting h6 {
+    color: var(--text-light);
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+}
+
+/* Responsive styles for voting options */
+@media (max-width: 480px) {
+    .options-grid {
+        padding: 0 0.5rem; /* Reduce padding on very small screens */
+    }
+    .options-grid.two-column-layout {
+        grid-template-columns: 1fr; /* Force single column on very small screens */
+    }
+    .option-btn-progress {
+        padding: 0.8rem 1rem; /* Further reduce padding */
+        min-height: 50px;
+    }
+    .option-name { font-size: 1rem; }
+    .vote-percentage { font-size: 0.8rem; }
+}
