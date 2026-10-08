@@ -3,7 +3,7 @@
 <head>
     <%- include('partials/head', { ads: true }) %>
     <title><%= title %></title>
-    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Contacta con JuegosBeber.es para dudas, sugerencias o incidencias.' %>
+    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Contacta con JuegosBeber.es para dudas, sugerencias o incidencias.' %>">
     <link rel="stylesheet" href="/css/prose.css">
 </head>
 <body class="prose-page">
@@ -13,48 +13,8 @@
         <p>Si tienes dudas, sugerencias o problemas con la web, escríbenos:</p>
         <a href="mailto:tuemail@correo.com" class="contact-email"><i class="bi bi-envelope"></i> tuemail@correo.com</a>
 
-        <section class="restart-box tp-panel">
-            <h2>Administración temporal</h2>
-            <p>Reinicia el servicio del servidor si algo se ha quedado colgado.</p>
-            <button id="restart-btn" class="tp-btn tp-btn--ghost"><i class="bi bi-power"></i> Reiniciar servicio PM2</button>
-            <div id="restart-status" class="restart-status" style="display: none;"></div>
-        </section>
     </main>
     <%- include('partials/footer') %>
-    <script>
-        document.getElementById('restart-btn').addEventListener('click', async () => {
-            const btn = document.getElementById('restart-btn');
-            const status = document.getElementById('restart-status');
-            
-            if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Pulsa otra vez para confirmar'; setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.innerHTML = '<i class="bi bi-power"></i> Reiniciar servicio PM2'; } }, 4000); return; }
-            delete btn.dataset.armed;
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="tp-spinner"></span> Reiniciando';
-            status.style.display = 'block';
-            status.textContent = 'Reiniciando el servicio…';
-            status.className = 'restart-status is-info';
-
-            try {
-                const response = await fetch('/api/restart-pm2', { method: 'POST' });
-                const data = await response.json();
-                
-                if (response.ok) {
-                    status.textContent = 'Servicio reiniciado.';
-                    status.className = 'restart-status is-ok';
-                } else {
-                    status.textContent = 'Error: ' + (data.error || 'Ocurrió un problema');
-                    status.className = 'restart-status is-error';
-                }
-            } catch (error) {
-                status.textContent = 'Error de conexión con el servidor.';
-                status.className = 'restart-status is-error';
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-power"></i> Reiniciar servicio PM2';
-            }
-        });
-    </script>
 
     <%- include('partials/analytics') %>
 </body>

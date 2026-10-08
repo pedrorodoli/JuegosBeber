@@ -210,12 +210,14 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
    ===================================================================== */
 (function () {
   const m = location.pathname.match(/^\/game\/([^/]+)\/([^/?#]+)/);
-  if (!m) return;
-  const gameType = decodeURIComponent(m[1]);
-  const roomId = decodeURIComponent(m[2]);
+  // Fuera de /game/... (por ejemplo el panel de La Mente) no hay contraseña que pedir,
+  // pero sí hace falta el parche de reconexión de más abajo.
+  const gameType = m ? decodeURIComponent(m[1]) : null;
+  const roomId = m ? decodeURIComponent(m[2]) : null;
   const KEY = 'roomPassword_' + roomId;
   let release;
   const gate = new Promise((r) => { release = r; });
+  if (!m) release();
 
   async function check(password) {
     const uuid = localStorage.getItem('userUUID') || '';
@@ -245,6 +247,19 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
     }
   }
 
+  // (clon) Reconexión: si el móvil se bloquea o cambia de red, Socket.IO vuelve a conectar
+  // con un socket nuevo que ya no está en la sala. Se repite el último joinRoom para
+  // volver a entrar sin recargar (el servidor reconoce al jugador por su uuid).
+  function bindRejoin(sock) {
+    if (sock.__tpRejoinBound) return;
+    sock.__tpRejoinBound = true;
+    let seen = sock.connected;
+    sock.on('connect', () => {
+      if (seen && sock.__tpLastJoin) sock.emit('joinRoom', sock.__tpLastJoin);
+      seen = true;
+    });
+  }
+
   function patch(io) {
     const S = io && io.Socket && io.Socket.prototype;
     if (!S || S.__tpPatched) return;
@@ -252,6 +267,8 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
     S.emit = function (ev, data) {
       if (ev === 'joinRoom' && data && data.user) {
         const self = this, args = arguments;
+        self.__tpLastJoin = data;
+        bindRejoin(self);
         gate.then(() => {
           let pw = null;
           try { pw = sessionStorage.getItem(KEY); } catch (e) {}
@@ -271,5 +288,7 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
     let _io;
     Object.defineProperty(window, 'io', { configurable: true, get: () => _io, set: (v) => { _io = v; patch(v); } });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  if (m) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  }
 })();

@@ -3,7 +3,6 @@ require('dotenv').config({ quiet: true }); // Load environment variables from .e
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const { exec } = require('child_process');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const activeGameIntervals = {}; // To store setInterval IDs for active games
@@ -831,17 +830,6 @@ app.get('/terms', (req, res) => res.render('terms', {
     description: 'Lee los términos y condiciones de uso de JuegosBeber.es. Juega con responsabilidad y conoce nuestras normas de la comunidad.'
 }));
 
-app.post('/api/restart-pm2', (req, res) => {
-    exec('pm2 restart 10', (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error al reiniciar PM2: ${error}`);
-            return res.status(500).json({ error: 'Error al reiniciar el servicio' });
-        }
-        console.log(`Salida del comando: ${stdout}`);
-        res.json({ message: 'Servicio reiniciado correctamente' });
-    });
-});
-
 app.get('/contact', (req, res) => res.render('contact', {
     title: 'Contacto - JuegosBeber.es',
     description: 'Contacta con JuegosBeber.es para dudas, sugerencias o incidencias.'
@@ -1102,21 +1090,6 @@ app.post('/api/rooms/:gameType', async (req, res) => {
 
     console.log(`[Server] Sala creada: [${gameType}] ${roomId} por ${creatorId}`);
     res.status(201).json({ roomId, creatorId });
-});
-
-app.post('/restart', (req, res) => {
-    console.log('[Server] Recibida solicitud de reinicio...');
-    exec('pm2 restart 10', (error, stdout, stderr) => {
-        if (error) {
-            console.error(`[Server] Error al reiniciar: ${error.message}`);
-            return res.status(500).send('Error al reiniciar el servidor.');
-        }
-        if (stderr) {
-            console.error(`[Server] Stderr al reiniciar: ${stderr}`);
-        }
-        console.log(`[Server] Stdout al reiniciar: ${stdout}`);
-        res.status(200).send('OK');
-    });
 });
 
 io.on('connection', (socket) => {
@@ -2848,7 +2821,7 @@ process.on('unhandledRejection', (err) => {
 // =====================================================================
 // (clon) Jugadores que se desconectan
 // =====================================================================
-const PLAYER_GRACE_SECONDS = Number(process.env.PLAYER_GRACE_SECONDS) || 30;
+const PLAYER_GRACE_SECONDS = Number(process.env.PLAYER_GRACE_SECONDS) || 120; // margen para bloquear el móvil un rato sin que te echen
 const pendingRemovals = {};
 let pyramidRoundCheck = null; // se asigna dentro de io.on (usa la misma lógica de fin de ronda)
 

@@ -10,9 +10,3 @@
 .prose strong { color: var(--chalk); font-weight: 600; }
 .prose .tp-btn { margin-top: 2rem; }
 .contact-email { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font: 700 clamp(1.2rem, 5vw, 1.6rem)/1.2 var(--font-display); color: var(--chalk); text-decoration: none; border-bottom: 2px solid var(--chip); padding-bottom: 2px; }
-.restart-box { margin-top: 3rem; padding: 1.25rem; }
-.restart-box h2 { margin-top: 0; }
-.restart-status { margin-top: 0.9rem; font-weight: 600; }
-.restart-status.is-info { color: var(--chalk-2); }
-.restart-status.is-ok { color: var(--win); }
-.restart-status.is-error { color: #ffb3a4; }
