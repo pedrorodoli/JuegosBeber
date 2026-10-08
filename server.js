@@ -11,6 +11,7 @@ const db = require('./db'); // Import the database module
 const { simulateBallDrop } = require('./public/js/bolita-physics'); // (clon) física compartida con el navegador
 const analyticsDb = require('./analyticsDb');
 const geoUtils = require('./geoUtils');
+const { withRoomLock, roomTimeout, roomInterval, isValidUuid, registerUuid, forgetRoom, resolveUuid, maskUuids } = require('./roomSync');
 
 const app = express();
 app.set('trust proxy', true);
@@ -311,6 +312,18 @@ function regenerateBolitaRound(gameState) {
 
 
 
+// Envía un evento a todos los de la sala. Cada uno recibe su uuid real y los
+// de los demás cambiados por un alias (ver roomSync.js), para que nadie pueda
+// hacerse pasar por otro jugador ni por el anfitrión.
+function roomEmit(roomId, event, payload) {
+    const ids = io.sockets.adapter.rooms.get(roomId);
+    if (!ids) return;
+    for (const id of ids) {
+        const s = io.sockets.sockets.get(id);
+        if (s) s.emit(event, maskUuids(payload, roomId, s.userUuid));
+    }
+}
+
 function getSanitizedGameState(gameState) {
     const stateToSend = { ...gameState };
     stateToSend.serverNow = Date.now(); // (clon) para que los relojes del cliente se sincronicen
@@ -366,16 +379,16 @@ async function advanceRaceStep(roomId, gameType) {
         // Persist and notify clients about the final position BEFORE ending the race
         // This allows clients to see the horse cross the finish line
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
 
         // Wait 3 seconds before transitioning to the results/distribution phase
-        setTimeout(async () => {
+        roomTimeout(roomId, async () => {
             await endRace(roomId, gameType, drawnCard.suit);
         }, 3000);
     } else {
         // Continue race: persist state and notify clients
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     }
 }
 
@@ -407,10 +420,10 @@ async function startRace(roomId, gameType) {
     }
     
     // Store interval ID in a temporary in-memory map, not in DB
-    activeGameIntervals[roomId] = setInterval(() => advanceRaceStep(roomId, gameType), 2000);
+    activeGameIntervals[roomId] = roomInterval(roomId, () => advanceRaceStep(roomId, gameType), 2000);
     
     await db.updateGameState(roomId, gameState); // Persist updated state
-    io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+    roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
 }
 
 async function endRace(roomId, gameType, winnerSuit) {
@@ -449,7 +462,7 @@ async function endRace(roomId, gameType, winnerSuit) {
     await db.updateGameState(roomId, gameState); // Persist updated state
     const stateToSend = getSanitizedGameState(gameState);
     stateToSend.roomAdminId = room.creatorId; // This was originally here
-    io.to(roomId).emit('roomState', stateToSend);
+    roomEmit(roomId, 'roomState', stateToSend);
 }
 
 function calculateWinnings(gameState) {
@@ -517,6 +530,40 @@ function calculateWinnings(gameState) {
     }
 }
 
+// (clon) Apuesta de ruleta limpia: tipo conocido, valor válido y cantidad entera positiva
+function cleanRouletteBet(bet) {
+    if (!bet || typeof bet !== 'object') return null;
+    const amount = Number(bet.amount);
+    if (!Number.isInteger(amount) || amount < 1) return null;
+    const type = bet.type;
+    let value = bet.value;
+    if (type === 'number') {
+        value = Number(value);
+        if (!Number.isInteger(value) || value < 0 || value > 36) return null;
+    } else if (type === 'color') {
+        if (value !== 'red' && value !== 'black') return null;
+    } else if (type === 'dozen') {
+        if (!['1-12', '13-24', '25-36'].includes(value)) return null;
+    } else if (!['even', 'odd', 'low', 'high'].includes(type)) {
+        return null;
+    }
+    return { type, value, amount };
+}
+
+// (clon) Reparto de tragos limpio: { uuidReal: cantidad entera >= 0 } solo de jugadores de la sala
+function cleanDistribution(roomId, distribution) {
+    if (!distribution || typeof distribution !== 'object') return null;
+    const out = {};
+    for (const key of Object.keys(distribution)) {
+        const amount = Number(distribution[key]);
+        if (!Number.isInteger(amount) || amount < 0 || amount > 100) return null;
+        const uuid = resolveUuid(roomId, key);
+        if (!uuid) continue;
+        if (amount > 0) out[uuid] = (out[uuid] || 0) + amount;
+    }
+    return out;
+}
+
 async function startRouletteBetting(roomId) {
     const room = await db.getRoomById(roomId);
     if (!room) return;
@@ -552,12 +599,12 @@ async function startRouletteBetting(roomId) {
 
     if (activeGameIntervals[roomId]) clearInterval(activeGameIntervals[roomId]);
 
-    activeGameIntervals[roomId] = setTimeout(async () => {
+    activeGameIntervals[roomId] = roomTimeout(roomId, async () => {
         await startRouletteSpin(roomId);
     }, gameState.settings.bettingTime * 1000);
 
     await db.updateGameState(roomId, gameState);
-    io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+    roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
 }
 
 async function startRouletteSpin(roomId) {
@@ -566,14 +613,15 @@ async function startRouletteSpin(roomId) {
     let gameState = await db.getGameState(roomId);
     if (!gameState) return;
 
+    if (gameState.phase !== 'betting') return; // (clon) la partida se reinició mientras tanto
     console.log(`[Server] Iniciando Ruleta en la sala ${roomId}`);
     gameState.phase = 'spinning';
     gameState.winningNumber = Math.floor(Math.random() * 37); // 0-36
 
     await db.updateGameState(roomId, gameState);
-    io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+    roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     
-    setTimeout(async () => {
+    roomTimeout(roomId, async () => {
         await endRouletteRound(roomId);
     }, 6000); // 6s for spin animation + result display
 }
@@ -584,17 +632,18 @@ async function endRouletteRound(roomId) {
     let gameState = await db.getGameState(roomId);
     if (!gameState) return;
 
+    if (gameState.phase !== 'spinning') return; // (clon) la partida se reinició mientras tanto
     console.log(`[Server] Terminando Ruleta en la sala ${roomId}`);
     gameState.phase = 'results';
     calculateWinnings(gameState);
 
     await db.updateGameState(roomId, gameState);
-    io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+    roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
 
     // Wait for results display, then check if we need distribution phase
-    setTimeout(async () => {
+    roomTimeout(roomId, async () => {
         const currentState = await db.getGameState(roomId);
-        if (!currentState) return;
+        if (!currentState || currentState.phase !== 'results') return;
 
         // Check if any winner can distribute drinks
         const hasDistributableWinners = currentState.winners.some(w => {
@@ -608,11 +657,12 @@ async function endRouletteRound(roomId) {
             currentState.drinkDistributionTimer = currentState.settings.distributionTime;
             
             await db.updateGameState(roomId, currentState);
-            io.to(roomId).emit('roomState', getSanitizedGameState(currentState));
+            roomEmit(roomId, 'roomState', getSanitizedGameState(currentState));
 
             // Set timeout for distribution phase
-            setTimeout(async () => {
-                await startRouletteBetting(roomId);
+            roomTimeout(roomId, async () => {
+                const st = await db.getGameState(roomId);
+                if (st && st.phase === 'distributing') await startRouletteBetting(roomId);
             }, currentState.settings.distributionTime * 1000);
         } else {
             // No distribution needed, start new round
@@ -1048,7 +1098,7 @@ app.post('/api/rooms/:gameType', async (req, res) => {
 
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = roomToUpdate.creatorId;
-            io.to(update_room_id).emit('roomState', stateToSend);
+            roomEmit(update_room_id, 'roomState', stateToSend);
             return res.status(200).json({ roomId: update_room_id });
         }
     }
@@ -1095,6 +1145,22 @@ app.post('/api/rooms/:gameType', async (req, res) => {
 io.on('connection', (socket) => {
     console.log(`[Server] Usuario conectado: ${socket.id}`);
 
+    // Todos los eventos que llevan roomId se procesan en la cola de su sala (ver roomSync.js)
+    const socketOn = socket.on.bind(socket);
+    socket.on = (event, handler) => socketOn(event, (...args) => {
+        const data = args[0];
+        const roomId = data && typeof data === 'object' && typeof data.roomId === 'string' ? data.roomId : null;
+        return roomId ? withRoomLock(roomId, () => handler(...args)) : handler(...args);
+    });
+
+    // Quién es este socket: el uuid con el que entró en la sala (no lo que diga cada mensaje)
+    const myUuid = (roomId) => (socket.roomId === roomId ? socket.userUuid : null);
+    const isHost = (room) => !!room && !!room.creatorId && myUuid(room.id) === room.creatorId;
+    const myPlayer = (roomId, gameState) => {
+        const uuid = myUuid(roomId);
+        return uuid && gameState && Array.isArray(gameState.players) ? gameState.players.find(p => p.uuid === uuid) : null;
+    };
+
     // Unirse a la sala de eventos del dashboard de estadísticas
     socket.on('analytics:join_dashboard', async () => {
         // (clon) Antes cualquiera podía unirse y recibir cada visita en directo (ciudad, página...)
@@ -1107,6 +1173,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinRoom', async ({ gameType, roomId, user }) => {
+        if (!user || !isValidUuid(user.uuid)) return socket.emit('error', { message: 'Identificador de jugador no válido. Recarga la página.' });
         console.log(`[Server] Join request for RoomId: ${roomId}, GameType: ${gameType}, User: ${user.name} (${user.uuid}), Socket: ${socket.id}`);
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== gameType) {
@@ -1125,6 +1192,8 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.roomId = roomId;
         socket.userUuid = user.uuid;
+        registerUuid(roomId, room.creatorId);
+        registerUuid(roomId, user.uuid);
         let gameState = await db.getGameState(roomId);
         if (!gameState) {
             console.log(`[Server] Error: Estado de juego no encontrado para RoomId: ${roomId}`);
@@ -1214,13 +1283,15 @@ io.on('connection', (socket) => {
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
         stateToSend.id = roomId; // Add roomId to the stateToSend
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('lamente:startGame', async ({ roomId, userId, settings }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         console.log(`[Server] lamente:startGame request for RoomId: ${roomId} by User: ${userId}`);
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) {
+        if (!isHost(room)) {
             console.log(`[Server] Error: StartGame unauthorized or room not found. Room: ${roomId}, User: ${userId}`);
             return;
         }
@@ -1257,22 +1328,21 @@ io.on('connection', (socket) => {
         const countdown = 5; // Countdown is always 5 seconds
         console.log(`[Server] Starting countdown: ${countdown}s for Room: ${roomId}`);
 
-        io.to(roomId).emit('gameStarting', countdown);
+        roomEmit(roomId, 'gameStarting', countdown);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend); // Update all clients with new phase
+        roomEmit(roomId, 'roomState', stateToSend); // Update all clients with new phase
 
         let countdownValue = countdown;
-        lamenteTimeouts[roomId] = setInterval(async () => { // Store in lamenteTimeouts map
-            io.to(roomId).emit('countdownTick', countdownValue);
+        const countdownTimer = lamenteTimeouts[roomId] = roomInterval(roomId, async () => { // Store in lamenteTimeouts map
+            // (clon) Un tic que ya estaba en cola cuando se paró o se reinició la cuenta atrás no hace nada
+            if (lamenteTimeouts[roomId] !== countdownTimer) return;
+            roomEmit(roomId, 'countdownTick', countdownValue);
             countdownValue--;
             console.log(`[Server] Countdown tick for Room: ${roomId}, Value: ${countdownValue}`);
 
-            // Update game state in DB for countdown (not optional now, but without currentTimeout)
-            // Need a copy of gameState to avoid modifying the one used by setInterval
-            let stateToPersist = { ...gameState };
-            // Ensure currentTimeout is not present when persisting
-            await db.updateGameState(roomId, getSanitizedGameState(stateToPersist)); // Persist without currentTimeout
+            // (clon) Antes aquí se guardaba en cada tic el estado copiado al empezar la cuenta atrás,
+            // y se borraba a quien hubiera entrado durante esos segundos. Ya no hace falta guardar nada.
 
             if (countdownValue < 0) {
                 console.log(`[Server] Countdown finished for Room: ${roomId}. Starting game.`);
@@ -1290,7 +1360,7 @@ io.on('connection', (socket) => {
                     await db.updateGameState(roomId, currentGameState);
                     const stateToSend = getSanitizedGameState(currentGameState);
                     stateToSend.roomAdminId = room.creatorId; // ADDED
-                    io.to(roomId).emit('roomState', stateToSend);
+                    roomEmit(roomId, 'roomState', stateToSend);
                     return;
                 }
 
@@ -1320,7 +1390,7 @@ io.on('connection', (socket) => {
                     if (room) {
                         stateToSend.roomAdminId = room.creatorId;
                     }
-                    io.to(roomId).emit('roomState', stateToSend); // Emit with roomAdminId
+                    roomEmit(roomId, 'roomState', stateToSend); // Emit with roomAdminId
                     return;
                 }
                 
@@ -1367,7 +1437,7 @@ io.on('connection', (socket) => {
                 });
                 const stateToSend = getSanitizedGameState(currentGameState);
                 stateToSend.roomAdminId = room.creatorId;
-                io.to(roomId).emit('roomState', stateToSend); // Update all clients with new state
+                roomEmit(roomId, 'roomState', stateToSend); // Update all clients with new state
             }
         }, 1000);
 
@@ -1378,6 +1448,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('lamente:pressVoy', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         console.log(`[Server] lamente:pressVoy request for RoomId: ${roomId} by User: ${userId}`);
         const room = await db.getRoomById(roomId); // Added this line
         let gameState = await db.getGameState(roomId);
@@ -1411,7 +1483,7 @@ io.on('connection', (socket) => {
                             number: player.number
                         };
             
-                        io.to(roomId).emit('playerGuessedCorrectly', {
+                        roomEmit(roomId, 'playerGuessedCorrectly', {
                             remainingCount: gameState.remainingPlayers.length,
                             playerName: player.name
                         });
@@ -1420,7 +1492,7 @@ io.on('connection', (socket) => {
                             // Game won
                             gameState.phase = 'finished';
                             delete gameState.lastCorrectGuess; // Clear on game end
-                             io.to(roomId).emit('gameOver', {
+                             roomEmit(roomId, 'gameOver', {
                                 win: true,
                                 results: gameState.players.map(p => ({ name: p.name, number: p.number, uuid: p.uuid })).sort((a, b) => a.number - b.number),
                                 correctlyGuessedPlayers: gameState.lastPlayerOrder
@@ -1431,7 +1503,7 @@ io.on('connection', (socket) => {
                         gameState.phase = 'finished';
                         delete gameState.lastCorrectGuess; // Clear on game end
                         console.log(`[Server] Wrong guess by ${player.name}. Game LOST for Room: ${roomId}.`);
-                        io.to(roomId).emit('gameOver', {
+                        roomEmit(roomId, 'gameOver', {
                             win: false,
                             failingPlayerUUID: player.uuid,
                             results: gameState.players.map(p => ({ name: p.name, number: p.number, uuid: p.uuid })).sort((a, b) => a.number - b.number),
@@ -1440,14 +1512,16 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
 
     socket.on('lamente:resetGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         console.log(`[Server] lamente:resetGame request for RoomId: ${roomId} by User: ${userId}`);
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) {
+        if (!isHost(room)) {
             console.log(`[Server] Error: ResetGame unauthorized or room not found. Room: ${roomId}, User: ${userId}`);
             return;
         }
@@ -1479,8 +1553,8 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, newGameState);
         const stateToSend = getSanitizedGameState(newGameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
-        io.to(roomId).emit('gameReset'); // Notify clients to go to waiting screen
+        roomEmit(roomId, 'roomState', stateToSend);
+        roomEmit(roomId, 'gameReset'); // Notify clients to go to waiting screen
     });
 
 
@@ -1493,20 +1567,28 @@ io.on('connection', (socket) => {
         // Allow bets only in 'waiting' phase (or remove phase check if bets allowed anytime before end)
         if (gameState.phase !== 'waiting') return; 
 
-        const playerIndex = gameState.players.findIndex(p => p.uuid === player.uuid);
+        // (clon) Solo se acepta el palo y la cantidad, y dentro de los límites de la sala
+        const betOn = player && player.betOn;
+        const betAmount = Number(player && player.betAmount);
+        const maxBet = Number(gameState.settings.maxBet) || 10;
+        if (!['Oros', 'Copas', 'Espadas', 'Bastos'].includes(betOn) || !Number.isInteger(betAmount) || betAmount < 1 || betAmount > maxBet) return;
+
+        const playerIndex = gameState.players.findIndex(p => p.uuid === myUuid(roomId));
         if (playerIndex !== -1) {
-            gameState.players[playerIndex] = { ...gameState.players[playerIndex], ...player };
-            console.log(`[Server] Apuesta recibida de ${player.name} en la sala ${roomId}`);
+            gameState.players[playerIndex] = { ...gameState.players[playerIndex], betOn, betAmount };
+            console.log(`[Server] Apuesta recibida de ${gameState.players[playerIndex].name} en la sala ${roomId}`);
             await db.updateGameState(roomId, gameState); // Persist updated state
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         }
     });
 
     socket.on('manualStart', async ({ roomId, gameType, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.players.length < 2 || gameState.phase !== 'waiting') return;
         console.log(`[Server] Manual start request for RoomId: ${roomId}, GameType: ${gameType}, User: ${userId}`);
@@ -1514,8 +1596,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('start-pyramid', async ({ roomId, userId, levels }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'waiting') return;
         if (gameState.players.length < 2) {
@@ -1564,7 +1648,7 @@ io.on('connection', (socket) => {
 
     async function revealNextPyramidCard(roomId) {
         let gameState = await db.getGameState(roomId);
-        if (!gameState) return;
+        if (!gameState || gameState.phase !== 'playing') return; // (clon) reiniciada mientras tanto
 
         // Reset for the new round/card
         gameState.playersFinishedThisRound = [];
@@ -1592,7 +1676,7 @@ io.on('connection', (socket) => {
         }
 
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     }
 
     async function checkIfRoundIsOver(roomId) {
@@ -1603,16 +1687,16 @@ io.on('connection', (socket) => {
         const inRound = gameState.players.filter(p => gameState.playerHands && gameState.playerHands[p.uuid]);
         if (inRound.every(p => gameState.playersFinishedThisRound.includes(p.uuid))) {
             // Emit the state one last time to hide buttons for the last player
-            io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+            roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
 
             gameState.actionLog.push('[Server] Todos han actuado. Revelando siguiente carta...');
             const hasDrinks = Object.values(gameState.drinksThisRound || {}).some(d => d > 0);
             const delay = hasDrinks ? 10000 : 2000; // 10s delay if drinks were given
 
             await db.updateGameState(roomId, gameState);
-            setTimeout(() => revealNextPyramidCard(roomId), delay);
+            roomTimeout(roomId, () => revealNextPyramidCard(roomId), delay);
         } else {
-            io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+            roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
         }
     }
 
@@ -1625,8 +1709,9 @@ io.on('connection', (socket) => {
 
         const senderHand = gameState.playerHands[sender.uuid];
 
+        targetPlayerUuid = resolveUuid(roomId, targetPlayerUuid);
         const target = gameState.players.find(p => p.uuid === targetPlayerUuid);
-        if (!target || !senderHand || senderHand[handCardIndex].used) return;
+        if (!target || !senderHand || !Number.isInteger(handCardIndex) || !senderHand[handCardIndex] || senderHand[handCardIndex].used) return;
 
         gameState.pendingActions.push({
             sender: { uuid: sender.uuid, name: sender.name },
@@ -1635,7 +1720,7 @@ io.on('connection', (socket) => {
         });
 
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     });
 
     socket.on('pyramid:resolve-action', async ({ roomId, resolution }) => {
@@ -1695,7 +1780,7 @@ io.on('connection', (socket) => {
         }
 
         if (toastMessage) {
-            io.to(roomId).emit('pyramid:show-toast', { message: toastMessage });
+            roomEmit(roomId, 'pyramid:show-toast', { message: toastMessage });
         }
 
         gameState.playerHands[sender.uuid][action.handCardIndex].used = true;
@@ -1712,8 +1797,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('pyramid:reset-game', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'finished') return;
 
@@ -1725,7 +1812,7 @@ io.on('connection', (socket) => {
         newGameState.players = originalPlayers; // Keep the players
 
         await db.updateGameState(roomId, newGameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(newGameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(newGameState));
     });
 
     socket.on('pyramid:pass-turn', async ({ roomId }) => {
@@ -1751,13 +1838,15 @@ io.on('connection', (socket) => {
         if (gameState.actionsThisTurn.length >= gameState.players.length) {
             gameState.actionLog.push('[Server] Todos han actuado. Revelando siguiente carta...');
             await db.updateGameState(roomId, gameState);
-            setTimeout(() => revealNextPyramidCard(roomId), 2000);
+            roomTimeout(roomId, () => revealNextPyramidCard(roomId), 2000);
         } else {
-            io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+            roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
         }
     }
 
     socket.on('startVoting', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'voting') {
             console.log(`[Server] Intento de inicio de votación en sala inexistente por ${userId} en la sala ${roomId}`);
@@ -1766,7 +1855,7 @@ io.on('connection', (socket) => {
         let gameState = await db.getGameState(roomId);
         if (!gameState) return socket.emit('error', { message: 'Estado de juego no encontrado.' });
 
-        if (room.creatorId !== userId || gameState.phase !== 'waiting') {
+        if (!isHost(room) || gameState.phase !== 'waiting') {
             console.log(`[Server] Intento de inicio de votación no autorizado o en fase incorrecta por ${userId} en la sala ${roomId}`);
             return socket.emit('error', { message: 'No tienes permiso para iniciar la votación o la votación ya ha comenzado.' });
         }
@@ -1776,7 +1865,7 @@ io.on('connection', (socket) => {
         gameState.endTime = Date.now() + (gameState.settings.duration * 1000);
 
         const durationMs = gameState.settings.duration * 1000;
-        activeGameIntervals[roomId] = setTimeout(async () => { // Use activeGameIntervals
+        activeGameIntervals[roomId] = roomTimeout(roomId, async () => { // Use activeGameIntervals
             let currentGameState = await db.getGameState(roomId);
             if (currentGameState && currentGameState.phase === 'voting') {
                 console.log(`[Server] Votación finalizada en la sala ${roomId} (automático).`);
@@ -1784,7 +1873,7 @@ io.on('connection', (socket) => {
                 await db.updateGameState(roomId, currentGameState);
                 const stateToSend = getSanitizedGameState(currentGameState);
                 stateToSend.roomAdminId = room.creatorId;
-                io.to(roomId).emit('roomState', stateToSend);
+                roomEmit(roomId, 'roomState', stateToSend);
             }
             delete activeGameIntervals[roomId]; // Clear interval from map
         }, durationMs);
@@ -1792,10 +1881,12 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState); // Persist updated state
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
-    socket.on('submitVote', async ({ roomId, optionName, uuid }) => {
+    socket.on('submitVote', async ({ roomId, optionName }) => {
+        const uuid = myUuid(roomId); // (clon) cada socket vota solo por sí mismo
+        if (!uuid) return;
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'voting') return;
         let gameState = await db.getGameState(roomId);
@@ -1817,12 +1908,14 @@ io.on('connection', (socket) => {
             gameState.votes[uuid] = optionName;
         }
         await db.updateGameState(roomId, gameState); // Persist updated state
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     });
 
     socket.on('resetGame', async ({ roomId, gameType, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) {
+        if (!isHost(room)) {
             console.log(`[Server] Intento de reinicio no autorizado por ${userId} en la sala ${roomId}`);
             return;
         }
@@ -1848,7 +1941,7 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, gameState); // Persist updated state
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         } else if (gameType === 'voting') {
             const originalSettings = gameState.settings;
             gameState = createVotingState(originalSettings);
@@ -1859,7 +1952,7 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, gameState); // Persist updated state
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         } else if (gameType === 'roulette') { // Add roulette reset logic
             const originalSettings = gameState.settings;
             gameState = createRouletteState(originalSettings);
@@ -1868,7 +1961,7 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, gameState);
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         } else if (gameType === 'autobus') {
             const currentPlayers = gameState.players;
             gameState = createAutobusState();
@@ -1887,13 +1980,15 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, gameState);
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         }
     });
 
     socket.on('roulette:startGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.gameType !== 'roulette' || room.creatorId !== userId) return;
+        if (!room || room.gameType !== 'roulette' || !isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'waiting') return;
         
@@ -1901,14 +1996,16 @@ io.on('connection', (socket) => {
         await startRouletteBetting(roomId);
     });
 
-    socket.on('roulette:placeBet', async ({ roomId, user, bet }) => {
+    socket.on('roulette:placeBet', async ({ roomId, bet }) => {
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'roulette') return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'betting') return;
 
-        const player = gameState.players.find(p => p.uuid === user.uuid);
-        if (!player || player.sips < bet.amount) {
+        const user = { uuid: myUuid(roomId) };
+        const player = myPlayer(roomId, gameState);
+        bet = cleanRouletteBet(bet);
+        if (!player || !bet || player.sips < bet.amount) {
             return;
         }
 
@@ -1930,17 +2027,19 @@ io.on('connection', (socket) => {
         }
 
         await db.updateGameState(roomId, gameState); // Persist updated state
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     });
 
-    socket.on('roulette:distributeSips', async ({ roomId, user, distribution }) => {
+    socket.on('roulette:distributeSips', async ({ roomId, distribution }) => {
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'roulette') return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'distributing') return;
 
-        const sender = gameState.players.find(p => p.uuid === user.uuid);
-        if (!sender) return;
+        const sender = myPlayer(roomId, gameState);
+        if (!sender || sender.hasDistributed) return; // (clon) se reparte una vez por ronda
+        distribution = cleanDistribution(roomId, distribution);
+        if (!distribution) return;
 
         // Verify the sender is a winner of the round
         const isWinner = gameState.winners.some(w => w.uuid === sender.uuid);
@@ -1987,21 +2086,27 @@ io.on('connection', (socket) => {
         }
         
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     });
 
-    socket.on('horse_race:distribute_drinks', async ({ roomId, winnerUuid, distribution }) => {
+    socket.on('horse_race:distribute_drinks', async ({ roomId, distribution }) => {
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'horse-race') return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'distributing') return;
 
-        const winnerPlayer = gameState.players.find(p => p.uuid === winnerUuid);
-        // Check if the winner has already distributed drinks
-        if (!winnerPlayer || gameState.winnersDistributedDrinks.includes(winnerUuid)) {
-            console.log(`[Server] Winner ${winnerPlayer.name} (${winnerUuid}) has already distributed drinks for race ${room.name}.`);
+        // (clon) Solo reparte un ganador, por sí mismo, una vez y como mucho lo que ha ganado
+        const winnerUuid = myUuid(roomId);
+        const winnerPlayer = myPlayer(roomId, gameState);
+        const winnerEntry = (gameState.winners || []).find(w => w.uuid === winnerUuid);
+        if (!winnerPlayer || !winnerEntry || gameState.winnersDistributedDrinks.includes(winnerUuid)) {
+            console.log(`[Server] Reparto rechazado en ${roomId}: no es ganador o ya repartió.`);
             return;
         }
+        distribution = cleanDistribution(roomId, distribution);
+        if (!distribution) return;
+        const total = Object.values(distribution).reduce((a, b) => a + b, 0);
+        if (total > winnerEntry.sipsWon) return;
 
         // Log that the winner has distributed drinks
         gameState.winnersDistributedDrinks.push(winnerUuid);
@@ -2046,36 +2151,42 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('disconnecting', async () => {
         // (clon) Antes se echaba al jugador al instante: al recargar la página perdía
         // sus cartas, tragos, apuestas y hasta descuadraba el turno. Ahora se marca
         // como desconectado y solo se le quita si no vuelve en PLAYER_GRACE_SECONDS.
-        for (const roomId of socket.rooms) {
+        for (const roomId of [...socket.rooms]) {
             if (roomId === socket.id) continue;
+            await withRoomLock(roomId, async () => {
             try {
                 const room = await db.getRoomById(roomId);
-                if (!room) continue;
+                if (!room) return;
                 let gameState = await db.getGameState(roomId);
-                if (!gameState || !gameState.players) continue;
+                if (!gameState || !gameState.players) return;
                 const player = gameState.players.find(p => p.id === socket.id);
-                if (!player) continue;
+                if (!player) return;
                 player.online = false;
                 await db.updateGameState(roomId, gameState);
                 console.log(`[Server] ${player.name} (${player.uuid}) se ha desconectado de ${roomId}. Margen de ${PLAYER_GRACE_SECONDS}s para volver.`);
                 const stateToSend = getSanitizedGameState(gameState);
                 stateToSend.roomAdminId = room.creatorId;
-                io.to(roomId).emit('roomState', stateToSend);
+                roomEmit(roomId, 'roomState', stateToSend);
                 if (room.gameType !== 'imitador') schedulePlayerRemoval(roomId, player.uuid, socket.id);
             } catch (err) {
                 console.error('[Server] Error al desconectar:', err.message);
             }
+            });
         }
     });
 
-    socket.on('roulette:sendDrinks', async ({ roomId, senderUuid, targetUuid, drinkCount }) => {
+    socket.on('roulette:sendDrinks', async ({ roomId, targetUuid, drinkCount }) => {
+        const senderUuid = myUuid(roomId);
+        targetUuid = resolveUuid(roomId, targetUuid);
+        drinkCount = Number(drinkCount);
+        if (!senderUuid || !targetUuid || !Number.isInteger(drinkCount) || drinkCount < 1 || drinkCount > 100) return;
         console.log(`[Server] Received 'roulette:sendDrinks' event:`, { roomId, senderUuid, targetUuid, drinkCount }); // DEBUG LOG
         const room = await db.getRoomById(roomId);
         if (!room || room.gameType !== 'roulette') {
@@ -2084,7 +2195,7 @@ io.on('connection', (socket) => {
         }
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'distributing') {
-            console.log(`[Server] Wrong game phase: ${gameState.phase}`); // DEBUG LOG
+            console.log(`[Server] Wrong game phase: ${gameState && gameState.phase}`); // DEBUG LOG
             return;
         }
 
@@ -2120,12 +2231,13 @@ io.on('connection', (socket) => {
         
         // Update game state
         await db.updateGameState(roomId, gameState);
-        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+        roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
     });
 
-    socket.on('roulette:clearBets', async ({ roomId, user }) => {
+    socket.on('roulette:clearBets', async ({ roomId }) => {
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'betting') return;
+        const user = { uuid: myUuid(roomId) };
 
         const player = gameState.players.find(p => p.uuid === user.uuid);
         const playerBets = gameState.bets[user.uuid];
@@ -2137,13 +2249,15 @@ io.on('connection', (socket) => {
             delete gameState.bets[user.uuid];
 
             await db.updateGameState(roomId, gameState);
-            io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+            roomEmit(roomId, 'roomState', getSanitizedGameState(gameState));
         }
     });
 
     socket.on('start-autobus', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.players.length < 1 || gameState.phase !== 'waiting') return; // At least 1 player to start
 
@@ -2162,17 +2276,20 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('autobus:red-or-black', async ({ roomId, userId, guess }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'red-or-black') return;
 
+        if (gameState.currentCard) return; // (clon) doble toque: ya se está enseñando la carta de esta jugada
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        if (currentPlayer.uuid !== userId) return; // Not current player's turn
+        if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
 
         const drawnCard = drawAutobusCard(gameState);
         gameState.currentCard = drawnCard;
@@ -2192,11 +2309,11 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
 
-        setTimeout(async () => {
+        roomTimeout(roomId, async () => {
             let updatedGameState = await db.getGameState(roomId);
-            if (!updatedGameState) return;
+            if (!updatedGameState || !updatedGameState.currentCard) return; // (clon) reiniciada o el jugador ya no está
 
             if (correctGuess) {
                 updatedGameState.phase = 'higher-or-lower';
@@ -2219,16 +2336,19 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, updatedGameState);
             const updatedStateToSend = getSanitizedGameState(updatedGameState);
             updatedStateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', updatedStateToSend);
+            roomEmit(roomId, 'roomState', updatedStateToSend);
         }, 3000);
     });
 
     socket.on('autobus:higher-or-lower', async ({ roomId, userId, guess }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'higher-or-lower') return;
 
+        if (gameState.currentCard) return; // (clon) doble toque: ya se está enseñando la carta de esta jugada
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
         
@@ -2268,11 +2388,11 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
 
-        setTimeout(async () => {
+        roomTimeout(roomId, async () => {
             let updatedGameState = await db.getGameState(roomId);
-            if (!updatedGameState) return;
+            if (!updatedGameState || !updatedGameState.currentCard) return; // (clon) reiniciada o el jugador ya no está
 
             if (correctGuess) {
                 updatedGameState.phase = 'inside-or-outside';
@@ -2295,16 +2415,19 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, updatedGameState);
             const updatedStateToSend = getSanitizedGameState(updatedGameState);
             updatedStateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', updatedStateToSend);
+            roomEmit(roomId, 'roomState', updatedStateToSend);
         }, 3000);
     });
 
     socket.on('autobus:inside-or-outside', async ({ roomId, userId, guess }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'inside-or-outside') return;
 
+        if (gameState.currentCard) return; // (clon) doble toque: ya se está enseñando la carta de esta jugada
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
         
@@ -2346,11 +2469,11 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
 
-        setTimeout(async () => {
+        roomTimeout(roomId, async () => {
             let updatedGameState = await db.getGameState(roomId);
-            if (!updatedGameState) return;
+            if (!updatedGameState || !updatedGameState.currentCard) return; // (clon) reiniciada o el jugador ya no está
 
             if (correctGuess) {
                 updatedGameState.phase = 'suit-guess';
@@ -2373,16 +2496,19 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, updatedGameState);
             const updatedStateToSend = getSanitizedGameState(updatedGameState);
             updatedStateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', updatedStateToSend);
+            roomEmit(roomId, 'roomState', updatedStateToSend);
         }, 3000);
     });
 
     socket.on('autobus:suit-guess', async ({ roomId, userId, guess }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'suit-guess') return;
 
+        if (gameState.currentCard) return; // (clon) doble toque: ya se está enseñando la carta de esta jugada
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
         
@@ -2413,11 +2539,11 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
 
-        setTimeout(async () => {
+        roomTimeout(roomId, async () => {
             let updatedGameState = await db.getGameState(roomId);
-            if (!updatedGameState) return;
+            if (!updatedGameState || !updatedGameState.currentCard) return; // (clon) reiniciada o el jugador ya no está
 
             if (!correctGuess) {
                 updatedGameState.players[updatedGameState.currentPlayerIndex].currentCards = [];
@@ -2442,13 +2568,15 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, updatedGameState);
             const updatedStateToSend = getSanitizedGameState(updatedGameState);
             updatedStateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', updatedStateToSend);
+            roomEmit(roomId, 'roomState', updatedStateToSend);
         }, 3000);
     });
 
     socket.on('imitador:startGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState) return; // Allow if 'waiting' OR 'playing'
 
@@ -2478,12 +2606,14 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('imitador:resetGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState) return;
 
@@ -2498,12 +2628,14 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, newGameState);
         const stateToSend = getSanitizedGameState(newGameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('bolita:startGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'waiting' || gameState.players.length === 0) return;
 
@@ -2520,10 +2652,12 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('bolita:dropBall', async ({ roomId, userId, startX }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
@@ -2553,7 +2687,7 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         let stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
 
         // 2. Clear any existing timer for this room
         if (activeGameIntervals[roomId]) {
@@ -2565,7 +2699,7 @@ io.on('connection', (socket) => {
         const rewardDisplayTime = 3000;
         const totalDuration = animationTime + rewardDisplayTime;
 
-        activeGameIntervals[roomId] = setTimeout(async () => {
+        activeGameIntervals[roomId] = roomTimeout(roomId, async () => {
             delete activeGameIntervals[roomId];
             
             let updatedGameState = await db.getGameState(roomId);
@@ -2588,13 +2722,15 @@ io.on('connection', (socket) => {
             await db.updateGameState(roomId, updatedGameState);
             let nextStateToSend = getSanitizedGameState(updatedGameState);
             nextStateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', nextStateToSend);
+            roomEmit(roomId, 'roomState', nextStateToSend);
         }, totalDuration);
     });
 
     socket.on('bolita:resetGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState) return;
 
@@ -2614,12 +2750,14 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, newGameState);
         const stateToSend = getSanitizedGameState(newGameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('cofres:startGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState || gameState.phase !== 'waiting' || gameState.players.length === 0) return;
 
@@ -2703,10 +2841,12 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('cofres:openChest', async ({ roomId, userId, chestId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
         if (!room) return;
         let gameState = await db.getGameState(roomId);
@@ -2736,12 +2876,14 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         const stateToSend = getSanitizedGameState(gameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('cofres:resetGame', async ({ roomId, userId }) => {
+        userId = myUuid(roomId); // (clon) el jugador es quien entró con este socket, no lo que diga el mensaje
+        if (!userId) return;
         const room = await db.getRoomById(roomId);
-        if (!room || room.creatorId !== userId) return;
+        if (!isHost(room)) return;
         let gameState = await db.getGameState(roomId);
         if (!gameState) return;
 
@@ -2754,7 +2896,7 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, newGameState);
         const stateToSend = getSanitizedGameState(newGameState);
         stateToSend.roomAdminId = room.creatorId;
-        io.to(roomId).emit('roomState', stateToSend);
+        roomEmit(roomId, 'roomState', stateToSend);
     });
 
     socket.on('disconnect', () => {
@@ -2789,6 +2931,7 @@ async function deleteRoomCompletely(roomId) {
     delete activeGameIntervals[roomId]; delete lamenteTimeouts[roomId]; delete activeGameIntervals[`deleteTimer_${roomId}`];
     await db.deleteGameState(roomId);
     await db.deleteRoom(roomId);
+    forgetRoom(roomId);
     io.emit('roomListUpdate');
 }
 setInterval(async () => {
@@ -2804,7 +2947,7 @@ setInterval(async () => {
             if (now - roomEmptySince[room.id] >= ROOM_EMPTY_MINUTES * 60 * 1000) {
                 console.log(`[Server] Sala ${room.id} (${room.gameType}) vacía ${ROOM_EMPTY_MINUTES} min: se borra.`);
                 delete roomEmptySince[room.id];
-                await deleteRoomCompletely(room.id);
+                await withRoomLock(room.id, () => deleteRoomCompletely(room.id));
             }
         }
         for (const id in roomEmptySince) if (!alive.has(id)) delete roomEmptySince[id];
@@ -2833,7 +2976,7 @@ function cancelPendingRemoval(roomId, uuid) {
 function schedulePlayerRemoval(roomId, uuid, socketId) {
     cancelPendingRemoval(roomId, uuid);
     const key = `${roomId}:${uuid}`;
-    pendingRemovals[key] = setTimeout(async () => {
+    pendingRemovals[key] = roomTimeout(roomId, async () => {
         delete pendingRemovals[key];
         try {
             const room = await db.getRoomById(roomId);
@@ -2845,14 +2988,23 @@ function schedulePlayerRemoval(roomId, uuid, socketId) {
             // La bolita está cayendo: esperar a que termine la tirada
             if (gameState.ballState && gameState.ballState.dropping) return schedulePlayerRemoval(roomId, uuid, socketId);
             removePlayerFromState(gameState, uuid);
+            const lamenteWon = gameState.finishedByLeave;
+            delete gameState.finishedByLeave;
             await db.updateGameState(roomId, gameState);
+            if (lamenteWon) {
+                roomEmit(roomId, 'gameOver', {
+                    win: true,
+                    results: gameState.players.map(p => ({ name: p.name, number: p.number, uuid: p.uuid })).sort((a, b) => a.number - b.number),
+                    correctlyGuessedPlayers: gameState.lastPlayerOrder || []
+                });
+            }
             if (gameState.game === 'pyramid' && gameState.phase === 'playing' && gameState.players.length && pyramidRoundCheck) {
                 await pyramidRoundCheck(roomId);
             }
             console.log(`[Server] ${player.name} no ha vuelto a ${roomId}: sale de la partida. Quedan ${gameState.players.length}.`);
             const stateToSend = getSanitizedGameState(gameState);
             stateToSend.roomAdminId = room.creatorId;
-            io.to(roomId).emit('roomState', stateToSend);
+            roomEmit(roomId, 'roomState', stateToSend);
         } catch (err) {
             console.error('[Server] Error quitando jugador:', err.message);
         }
@@ -2883,6 +3035,26 @@ function removePlayerFromState(gs, uuid) {
             }
         }
         if (playing && gs.players.every(p => p.hasWon)) gs.phase = 'finished';
+    } else if (gs.game === 'lamente') {
+        // (clon) Si el que se va tenía el número más bajo que quedaba, nadie podía pulsar "Voy"
+        if (Array.isArray(gs.remainingPlayers)) gs.remainingPlayers = gs.remainingPlayers.filter(u => u !== uuid);
+        if (gs.phase === 'playing' && (!gs.remainingPlayers || gs.remainingPlayers.length === 0)) {
+            gs.phase = 'finished';
+            delete gs.lastCorrectGuess;
+            gs.finishedByLeave = true;
+        }
+    } else if (gs.game === 'horse-race') {
+        // (clon) Si un ganador se iba antes de repartir, la carrera esperaba para siempre
+        if (gs.phase === 'distributing') {
+            gs.winners = (gs.winners || []).filter(w => w.uuid !== uuid);
+            const done = gs.winners.every(w => (gs.winnersDistributedDrinks || []).includes(w.uuid));
+            if (done) gs.phase = 'finished';
+        }
+    } else if (gs.game === 'pyramid') {
+        // (clon) Un reto pendiente con alguien que ya no está bloqueaba la ronda
+        if (Array.isArray(gs.pendingActions)) {
+            gs.pendingActions = gs.pendingActions.filter(a => a.sender.uuid !== uuid && a.target.uuid !== uuid);
+        }
     } else if (Array.isArray(gs.turnOrder)) {
         const t = gs.turnOrder.indexOf(uuid);
         if (t !== -1) {
