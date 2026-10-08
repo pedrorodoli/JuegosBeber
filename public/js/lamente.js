@@ -49,16 +49,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsList = document.getElementById('results-list');
     const nextGameCountdownEl = document.getElementById('next-game-countdown');
 
+    function lmInfo(min, max, remaining) {
+        return `<span><small>Rango</small><strong class="num">${Number(min)}–${Number(max)}</strong></span><span><small>Faltan</small><strong class="num">${Number(remaining)}</strong></span>`;
+    }
+
     // --- Helper to show screens ---
     function showScreen(screenName) {
         console.log(`[Lamente-Client] Showing screen: ${screenName}`);
-        // Ensure all screens are referenced correctly before trying to hide them
-        if (loginScreen) loginScreen.classList.add('hidden');
-        if (waitingScreen) waitingScreen.classList.add('hidden');
-        if (gameScreen) gameScreen.classList.add('hidden');
-        if (gameOverScreen) gameOverScreen.classList.add('hidden');
-
+        // (clon) Ocultamos solo las otras pantallas: la visible no se toca y no re-anima (parpadeo)
         const targetScreen = document.getElementById(`${screenName}-screen`);
+        [loginScreen, waitingScreen, gameScreen, gameOverScreen].forEach(sc => { if (sc && sc !== targetScreen) sc.classList.add('hidden'); });
         if (targetScreen) {
             targetScreen.classList.remove('hidden');
         } else {
@@ -95,6 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('login');
     }
 
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinButton.click(); });
+
     // Event listener for the join button, for new users or users changing their name.
     joinButton.addEventListener('click', () => {
         const enteredName = nameInput.value.trim();
@@ -107,7 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('joinRoom', { gameType: 'lamente', roomId, user: { uuid: userUUID, name: userName } });
             // The 'roomState' event will now handle moving to the 'waiting' screen.
         } else {
-            alert('Por favor, introduce tu nombre.');
+            nameInput.focus();
+            alert('Escribe tu nombre para entrar.');
         }
     });
 
@@ -138,9 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerListDiv.innerHTML = '';
         if (gameState.players) {
             gameState.players.forEach(p => {
-                const playerElement = document.createElement('div');
-                playerElement.className = 'player-card';
-                playerElement.textContent = p.name;
+                const playerElement = tpPlayerChip(p.name, { offline: p.online === false, tag: 'div', me: p.uuid === userUUID, className: 'player-card' });
                 playerListDiv.appendChild(playerElement);
             });
         }
@@ -149,7 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
         switch (gameState.phase) {
             case 'waiting':
                 showScreen('waiting');
-                countdownTimer.textContent = 'Esperando a que el admin inicie la partida...';
+                countdownTimer.textContent = 'Esperando a que el anfitrión empiece la partida';
+                countdownTimer.classList.remove('is-counting');
                 voyButton.disabled = false;
                 voyButton.classList.add('hidden');
                 break;
@@ -164,7 +166,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // NEW: Display last correct guesser
                 if (gameState.lastCorrectGuess && lastGuesserDisplay) {
-                    lastGuesserDisplay.textContent = `Último en adivinar: ${gameState.lastCorrectGuess.name} (${gameState.lastCorrectGuess.number})`;
+                    lastGuesserDisplay.innerHTML = '';
+                    const lg1 = document.createElement('span'); lg1.textContent = 'Última carta';
+                    const lg2 = document.createElement('strong'); lg2.className = 'num'; lg2.textContent = gameState.lastCorrectGuess.number;
+                    const lg3 = document.createElement('span'); lg3.textContent = gameState.lastCorrectGuess.name;
+                    lastGuesserDisplay.append(lg1, lg2, lg3);
                     lastGuesserDisplay.classList.remove('hidden');
                 } else if (lastGuesserDisplay) { // This else-if is technically redundant due to the default hide, but keeps clarity
                     lastGuesserDisplay.classList.add('hidden');
@@ -172,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (currentPlayer && currentPlayer.number !== null) { // If player has a number assigned
                     playerNumberSpan.textContent = currentPlayer.number;
-                    gameInfoDiv.innerHTML = `Rango: ${gameState.settings.min}-${gameState.settings.max}<br>Faltan: ${gameState.remainingPlayers.length} jugadores`;
+                    gameInfoDiv.innerHTML = lmInfo(gameState.settings.min, gameState.settings.max, gameState.remainingPlayers.length);
 
                     if (hasAlreadyPlayed) {
                         voyButton.disabled = true;
@@ -200,19 +206,22 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameStarting', (initialCountdown) => {
         console.log(`[Lamente-Client] Received gameStarting: ${initialCountdown}`);
         showScreen('waiting');
-        countdownTimer.textContent = `La partida comienza en ${initialCountdown} segundos...`;
+        countdownTimer.innerHTML = `Empieza en <span class="lm-count num">${Number(initialCountdown)}</span>`;
+        countdownTimer.classList.add('is-counting');
     });
 
     socket.on('countdownTick', (countdown) => {
         console.log(`[Lamente-Client] Received countdownTick: ${countdown}`);
-        countdownTimer.textContent = `La partida comienza en ${countdown} segundos...`;
+        countdownTimer.innerHTML = `Empieza en <span class="lm-count num">${Number(countdown)}</span>`;
+        countdownTimer.classList.add('is-counting');
     });
 
     socket.on('gameStarted', (data) => {
         console.log(`[Lamente-Client] Received gameStarted. Number: ${data.number}, Range: ${data.range.min}-${data.range.max}, Remaining: ${data.remainingCount}`);
         showScreen('game');
         playerNumberSpan.textContent = data.number;
-        gameInfoDiv.innerHTML = `Rango: ${data.range.min}-${data.range.max}<br>Faltan: ${data.remainingCount} jugadores`;
+        playerNumberSpan.classList.remove('is-dealt'); void playerNumberSpan.offsetWidth; playerNumberSpan.classList.add('is-dealt');
+        gameInfoDiv.innerHTML = lmInfo(data.range.min, data.range.max, data.remainingCount);
         voyButton.disabled = false;
         voyButton.classList.remove('hidden');
         // Re-check if this player already played (for reconnects during playing phase)
@@ -231,8 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('playerGuessedCorrectly', (data) => {
-        console.log(`[Lamente-Client] Received playerGuessedCorrectly. Player: ${data.playerName}, Remaining: ${data.remainingPlayers.length}`);
-        gameInfoDiv.innerHTML = `Rango: ${window.gameState.settings.min}-${window.gameState.settings.max}<br>Faltan: ${data.remainingPlayers.length} jugadores`;
+        // (clon) el servidor manda remainingCount; antes se leía remainingPlayers.length y petaba
+        const remaining = data.remainingCount != null ? data.remainingCount : (data.remainingPlayers || []).length;
+        if (window.gameState && window.gameState.settings) gameInfoDiv.innerHTML = lmInfo(window.gameState.settings.min, window.gameState.settings.max, remaining);
         if (data.playerName === userName) { // Or check against userUUID for more robustness
             voyButton.disabled = true;
             voyButton.classList.add('hidden');
@@ -275,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.win) {
 
                     gameOverTitle.textContent = '¡Habéis ganado!';
+                    gameOverScreen.classList.add('is-win'); gameOverScreen.classList.remove('is-lose');
 
                     gameOverReason.textContent = 'Todos los jugadores han acertado el orden.';
 
@@ -283,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const failingPlayer = data.results.find(p => p && p.uuid === data.failingPlayerUUID);
 
                     gameOverTitle.textContent = '¡Habéis perdido!';
+                    gameOverScreen.classList.add('is-lose'); gameOverScreen.classList.remove('is-win');
 
                     gameOverReason.textContent = `La secuencia se ha roto por culpa de ${failingPlayer ? failingPlayer.name : 'un jugador desconocido'}.`;
 
@@ -298,15 +310,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const playerElement = document.createElement('div');
 
-                    playerElement.className = 'player-card';
-
-                    playerElement.textContent = `${player.name}: ${player.number}`;
+                    playerElement.className = 'player-card result-card';
+                    playerElement.style.setProperty('--i', resultsList.children.length);
+                    const rn = document.createElement('span'); rn.className = 'result-num num'; rn.textContent = player.number;
+                    const rnm = document.createElement('span'); rnm.className = 'result-name'; rnm.textContent = player.name;
+                    playerElement.append(rn, rnm);
 
                     if (player.uuid === data.failingPlayerUUID) {
 
-                        playerElement.style.borderColor = 'red';
-
-                        playerElement.style.backgroundColor = '#fecaca'; // Tailwind red-200
+                        playerElement.classList.add('is-fail');
 
                     } else if (data.correctlyGuessedPlayers && data.correctlyGuessedPlayers.includes(player.uuid)) {
 
@@ -334,11 +346,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     playAgainButton.id = 'play-again-admin-button';
 
-                    playAgainButton.textContent = 'Volver a Jugar (Admin)';
+                    playAgainButton.innerHTML = '<i class="bi bi-arrow-repeat"></i> Jugar otra vez';
 
-                    playAgainButton.className = 'btn-primary';
-
-                    playAgainButton.style.marginTop = '20px';
+                    playAgainButton.className = 'btn-primary btn-custom lm-again';
 
                     playAgainButton.onclick = () => {
 

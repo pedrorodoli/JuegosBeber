@@ -1,360 +1,157 @@
-/* --- Estilos Generales y Fondo --- */
-:root {
-    --primary-color: #6a11cb;
-    --secondary-color: #2575fc;
-    --background-gradient: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-    --card-bg: rgba(255, 255, 255, 0.1);
-    --text-color: #f0f0f0;
-    --text-dark-color: #333;
-    --success-color: #28a745;
-    --success-hover: #218838;
-    --border-color: rgba(255, 255, 255, 0.2);
-    --font-family: 'Poppins', sans-serif;
-}
+/* Carrera de Caballos */
 
-body.horse-race-active {
-    font-family: var(--font-family);
-    background: var(--background-gradient);
-    color: var(--text-color);
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
+.horse-race-wrapper { flex: 1; display: flex; justify-content: center; padding: 1rem 1rem 2rem; }
+.main-container { width: 100%; max-width: 960px; }
+.hr-view { flex-direction: column; align-items: stretch; }
+.hr-view.is-entering { animation: tp-rise 420ms var(--ease-out) both; }
 
-.horse-race-active header {
-    width: 100%;
-}
+.hr-head { text-align: center; margin-bottom: 0.5rem; }
+.hr-room { font: 600 0.85rem/1.2 var(--font-body); color: var(--muted); text-align: center; margin: 0 0 0.75rem; letter-spacing: 0; }
+#bet-form-container, #waiting-room-container { text-align: center; }
+#bet-form-container .g-question, #waiting-room-container .g-question { margin-left: auto; margin-right: auto; }
 
-.horse-race-wrapper {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-    width: 100%;
+/* Selector de caballo: los cuatro ases */
+.horse-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 460px; margin: 0 auto 1.4rem; }
+.horse-pick {
+  position: relative; display: grid; justify-items: center; gap: 0.45rem;
+  padding: 0.6rem 0.3rem 0.55rem; border-radius: var(--r-md);
+  border: 1.5px solid var(--line); background: rgba(17, 55, 44, 0.7); color: var(--chalk-2);
+  font: 600 0.82rem/1 var(--font-body); cursor: pointer; touch-action: manipulation;
+  transition: transform 200ms var(--ease-out), border-color 200ms ease, background-color 200ms ease, color 200ms ease;
 }
+.horse-pick img { width: 100%; max-width: 70px; border-radius: 6px; box-shadow: 0 10px 18px -10px rgba(2,14,10,0.9); transition: transform 280ms var(--ease-out); }
+.horse-pick:active { transform: scale(0.97); }
+.horse-pick.is-selected { border-color: var(--chip); background: var(--felt-600); color: var(--chalk); }
+.horse-pick.is-selected img { transform: translateY(-4px) rotate(-3deg); }
+.horse-pick.is-selected::after {
+  content: ""; position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--chip) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5l3 3 6-7' fill='none' stroke='%2308201a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 14px no-repeat;
+  animation: tp-pop 220ms var(--ease-out) both;
+}
+@media (hover: hover) and (pointer: fine) { .horse-pick:not(.is-selected):hover { border-color: var(--line-strong); } }
 
-/* --- Contenedor Principal y Tarjetas --- */
-.main-container {
-    width: 100%;
-    max-width: 1200px;
-}
+.hr-form { max-width: 460px; margin: 0 auto; text-align: left; }
+.hr-fields { display: grid; gap: 1rem; }
+@media (min-width: 560px) { .hr-fields { grid-template-columns: 1.2fr 1fr; } }
+.hr-submit { width: 100%; margin-top: 1.25rem; }
 
-.card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 15px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    color: var(--text-color);
-    display: flex; /* Usamos flex para que el contenido se adapte */
-    flex-direction: column;
-    overflow: hidden; /* Para que los bordes redondeados se apliquen bien */
+/* Lista de apuestas */
+.hr-bets { list-style: none; padding: 0; margin: 0 auto; display: grid; gap: 8px; max-width: 460px; text-align: left; }
+.hr-bet {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.7rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.5rem; border-radius: var(--r-md);
+  background: rgba(17, 55, 44, 0.75); border: 1px solid var(--line);
+  animation: tp-rise 320ms var(--ease-out) both;
 }
+.hr-bet.is-me { border-color: var(--line-strong); }
+.hr-bet-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-bet-on { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; }
+.hr-bet-on img { width: 22px; border-radius: 3px; }
+.hr-bet-pending { color: var(--muted); font-size: 0.85rem; }
+.hr-empty { color: var(--muted); text-align: center; padding: 1rem; }
+.hr-waiting-sub { margin-bottom: 1rem; }
+.hr-admin { margin: 1.5rem auto 0; width: 100%; max-width: 460px; }
+.hr-admin .btn-custom { width: 100%; }
 
-.card-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-    background: transparent;
-}
+/* Carrera */
+.hr-running-title { font: 600 0.85rem/1 var(--font-body); color: var(--chip); text-align: center; margin: 0 0 0.75rem; letter-spacing: 0.02em; }
+.race-body { display: grid; gap: 1.25rem; }
+@media (min-width: 860px) { .race-body { grid-template-columns: 1fr 280px; align-items: start; } }
+.race-track-container { display: grid; gap: 0.9rem; }
+.race-player-list-container h3 { font-size: 1rem; margin-bottom: 0.6rem; }
 
-.card-header h2 {
-    margin: 0;
-    font-weight: 700;
-    text-align: center;
-}
+#last-card-drawn { display: flex; align-items: center; justify-content: center; gap: 0.9rem; min-height: 96px; }
+.card-display { width: 62px; aspect-ratio: 100 / 153; border-radius: 7px; background: #fff; box-shadow: 0 14px 22px -12px rgba(2,14,10,0.95); position: relative; overflow: hidden; }
+.card-display.is-new { animation: hr-flip-in 520ms var(--ease-out) both; }
+@keyframes hr-flip-in { from { transform: perspective(600px) rotateY(-80deg) translateX(-20px); opacity: 0; } to { transform: none; opacity: 1; } }
+.card-center { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.hr-last-label { font-size: 0.95rem; color: var(--muted); }
+.hr-last-label strong { color: var(--chalk); }
 
-.card-body {
-    padding: 1.5rem;
-    flex-grow: 1;
+/* Pista en 2.5D (perspectiva calculada en JS, sin 3D real: así no hay cortes en móvil) */
+.race-stage {
+  --stage-h: clamp(400px, 64dvh, 560px);
+  position: relative; height: var(--stage-h);
+  border-radius: var(--r-lg); overflow: hidden;
+  background:
+    radial-gradient(120% 50% at 50% 0%, rgba(143,227,176,0.12), transparent 60%),
+    linear-gradient(180deg, var(--felt-950), var(--felt-900) 35%, var(--felt-800));
+  border: 1px solid var(--line);
+  box-shadow: inset 0 2px 40px rgba(2,14,10,0.7);
+  isolation: isolate;
 }
-
-/* --- Formularios y Botones --- */
-.form-label {
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-}
-
-.form-control, .form-select {
-    background-color: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-}
-
-.form-control:focus, .form-select:focus {
-    background-color: rgba(0, 0, 0, 0.3);
-    color: #fff;
-    border-color: var(--secondary-color);
-    box-shadow: 0 0 0 0.25rem rgba(37, 117, 252, 0.5);
-}
-
-.form-control::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.btn {
-    border-radius: 8px;
-    padding: 0.75rem 1.5rem;
-    font-weight: 700;
-    transition: all 0.3s ease;
-    border: none;
-    cursor: pointer;
-}
-
-.btn-success {
-    background-color: var(--success-color);
-    color: #fff;
-}
-
-.btn-success:hover {
-    background-color: var(--success-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-/* --- Listas de Jugadores --- */
-.list-group {
-    border-radius: 8px;
-    overflow: hidden;
-}
-.list-group-item {
-    background-color: transparent;
-    border-color: var(--border-color);
-    color: var(--text-color);
-    padding: 1rem 1.25rem;
-}
-
-#player-list-waiting, #player-list-running {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-/* --- Vista de la Carrera --- */
-.race-body {
-    display: flex;
-    gap: 2rem;
-}
-
-.race-player-list-container {
-    flex: 0 0 280px;
-    padding-right: 1.5rem;
-    border-right: 1px solid var(--border-color);
-}
-
-.race-track-container {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-/* --- Carta Sacada --- */
-#last-card-drawn {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.card-display {
-    width: 100px;
-    height: 150px;
-    border-radius: 10px;
-    background-color: #fff;
-    margin: 0 auto;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-    position: relative;
-}
-
-.card-center {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    height: 100%;
-    background-size: contain;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-
-/* --- Pista de Carreras (Sin cambios en la animación) --- */
-.race-track {
-    position: relative;
-    display: flex;
-    justify-content: space-around;
-    height: 500px;
-    background-color: #2a8c2a; /* Verde césped */
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: 10px;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-.horse-lane {
-    position: relative;
-    width: 20%;
-    height: 100%;
-    border-right: 2px dashed rgba(255, 255, 255, 0.3);
-    z-index: 2; /* Asegura que los caballos estén sobre las cartas */
-}
-.horse-lane:last-child { border-right: none; }
-
-.finish-line {
-    position: absolute;
-    top: 10px;
-    left: 0;
-    right: 0;
-    height: 5px;
-    background-image: repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px);
-    z-index: 3; /* Por encima de todo */
-}
+@media (min-width: 860px) { .race-stage { --stage-h: clamp(440px, 68dvh, 620px); } }
+.race-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .horse {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    transition: bottom 0.5s ease-in-out;
-    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+  position: absolute; left: 0; top: 0; width: 120px;
+  transform-origin: 0 0;
+  transform: translate(var(--x, 0px), var(--y, 0px)) scale(var(--s, .5)) translate(-50%, -100%);
+  transition: transform 900ms cubic-bezier(.3,.9,.3,1);
+  will-change: transform;
 }
+.horse-img { position: relative; display: block; width: 100%; height: auto; transform-origin: 50% 100%; filter: drop-shadow(0 6px 4px rgba(2,14,10,0.45)); }
+.horse-shadow { position: absolute; left: 6%; right: 6%; bottom: -10px; height: 22px; border-radius: 50%; background: radial-gradient(closest-side, rgba(2,14,10,0.55), transparent); }
+.horse-run .horse-img { animation: hr-gallop 300ms ease-in-out 3; }
+@keyframes hr-gallop { 0%, 100% { transform: none; } 30% { transform: translateY(-12%) rotate(-5deg); } 60% { transform: translateY(-3%) rotate(3deg); } }
+.horse-finish-animation .horse-img { animation: hr-win 1100ms var(--ease-out) both; }
+@keyframes hr-win { 0% { transform: none; } 35% { transform: translateY(-18%) scale(1.12) rotate(-8deg); } 70% { transform: translateY(-4%) scale(1.06) rotate(3deg); } 100% { transform: scale(1.08); } }
 
-.horse-label {
-    font-size: 1rem;
-    font-weight: bold;
-    margin-top: 5px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background-color: rgba(0,0,0,0.7);
-    color: #fff;
+/* Nombres de los palos: en el suelo, al final de cada calle, siempre legibles */
+.lane-labels { position: absolute; inset: 0; pointer-events: none; }
+.lane-label {
+  position: absolute; left: 0; top: 0; transform: translate(var(--x, 0px), var(--y, 0px)) translate(-50%, -50%);
+  font: 700 12px/1 var(--font-body); padding: 5px 9px; border-radius: 999px; white-space: nowrap;
+  background: rgba(6,24,18,0.85); color: var(--chalk-2); box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color 200ms ease, color 200ms ease;
+  z-index: 2000;
 }
+@media (min-width: 860px) { .lane-label { font-size: 14px; padding: 6px 12px; } }
+.lane-label.is-leading { background: var(--chalk); color: var(--felt-900); }
+.lane-label.is-winner { background: var(--chip); color: var(--chip-ink); }
 
-/* Colores por palo */
-.horse-oros .horse-label { background-color: gold; color: black; }
-.horse-copas .horse-label { background-color: crimson; }
-.horse-espadas .horse-label { background-color: steelblue; }
-.horse-bastos .horse-label { background-color: forestgreen; }
-
-/* --- Vista de Resultados --- */
-#results-body {
-    text-align: center;
-}
-
-#results-body h3 {
-    font-weight: 700;
-    margin-bottom: 1rem;
-}
-
-#distribution-form {
-    max-width: 500px;
-    margin: 2rem auto 0;
-}
-
-#sips-remaining.text-danger {
-    color: #ff6b6b !important;
-    font-weight: 700;
-}
-
-/* --- Animaciones (Sin cambios) --- */
-@keyframes correr {
-    0% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-5px); }
-    100% { transform: translateX(-50%) translateY(0); }
-}
-.horse-run { animation: correr 0.5s infinite; }
-
-@keyframes subeYBaja {
-    0% { transform: translateY(0); }
-    25% { transform: translateY(-10px); }
-    50% { transform: translateY(0); }
-    75% { transform: translateY(10px); }
-    100% { transform: translateY(0); }
-}
-.penalized-horse-animation { animation: subeYBaja 1.5s ease-in-out; }
-
-@keyframes crossFinishLine {
-    0% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-20px); }
-    100% { transform: translateX(-50%) translateY(0); }
-}
-.horse-finish-animation { animation: crossFinishLine 1.5s ease-out forwards; }
-
-/* --- Responsivo --- */
-@media (max-width: 768px) {
-    body.horse-race-active { padding: 10px; }
-    .race-body { flex-direction: column; }
-    .race-player-list-container { border-right: none; border-bottom: 1px solid var(--border-color); padding-right: 0; padding-bottom: 1rem; margin-bottom: 1rem; }
-    .race-track { height: 400px; }
-    .horse { font-size: 2rem; }
-    .card-display { width: 80px; height: 120px; }
-    .btn { width: 100%; }
-    #bet-form-container .row > div { margin-bottom: 1rem; }
-}
-
-/* --- Step Cards --- */
-#step-cards-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column-reverse; /* Para que el primer elemento esté abajo */
-    justify-content: space-evenly; /* Distribuye las cartas a lo largo de la pista */
-    padding-bottom: 12%; /* Ajuste para que no empiecen pegadas al borde */
-    padding-top: 12%;
-    z-index: 1; /* Detrás de los caballos */
-}
-
+/* Cartas de los escalones: de pie en el arcén izquierdo, tamaño legible */
+#step-cards-container { position: absolute; inset: 0; pointer-events: none; }
 .step-card {
-    position: relative;
-    width: 60px;
-    height: 90px;
-    margin: 0 auto;
-    perspective: 1000px;
+  position: absolute; left: 0; top: 0; width: var(--w, 44px); aspect-ratio: 100 / 153; perspective: 700px;
+  transform: translate(var(--x, 0px), var(--y, 0px)) translate(-50%, -100%);
+}
+.step-card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 700ms var(--ease-out); border-radius: 5px; box-shadow: 0 10px 14px -8px rgba(2,14,10,0.9); }
+.step-card.revealed .step-card-inner { transform: rotateY(180deg); }
+.step-card-face { position: absolute; inset: 0; border-radius: inherit; -webkit-backface-visibility: hidden; backface-visibility: hidden; background-size: cover; background-position: center; }
+.step-card-front { background: var(--chip) url('/images/cartas/FIN.png') center / cover; }
+.step-card-back { background-color: #fff; transform: rotateY(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .horse { transition-duration: 1ms; }
+  .horse-run .horse-img, .horse-finish-animation .horse-img { animation: none; }
 }
 
-.step-card-inner {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    text-align: center;
-    transition: transform 0.8s;
-    transform-style: preserve-3d;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
+/* Resultados y reparto */
+#results-view { text-align: center; }
+#results-body { display: grid; justify-items: center; gap: 0.25rem; }
+.hr-podium { position: relative; margin: 0.5rem 0 1rem; }
+.hr-podium img { width: 104px; border-radius: 9px; box-shadow: 0 0 0 3px var(--chip), 0 22px 34px -16px rgba(255,90,60,0.6); animation: hr-win 900ms var(--ease-out) both; }
+.hr-podium-flag { position: absolute; top: -12px; right: -14px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--chalk); color: var(--felt-900); font-size: 1.05rem; animation: tp-pop 380ms var(--ease-out) 300ms both; }
+.hr-winners { list-style: none; padding: 0; margin: 0 0 0.5rem; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.hr-winners li { padding: 0.45rem 0.85rem; border-radius: var(--r-pill); background: var(--felt-600); font-weight: 600; }
+.sips-received-summary { width: 100%; max-width: 420px; margin-top: 1rem; padding: 1rem; border-radius: var(--r-md); background: var(--chip-soft); border: 1px solid rgba(255,90,60,0.35); text-align: left; }
+.sips-received-summary h4 { font-size: 1rem; margin-bottom: 0.5rem; }
+.sips-received-summary ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sips-received-summary li { display: flex; justify-content: space-between; }
+.hr-again { margin-top: 1.5rem; min-width: 220px; }
+.hr-wait { display: grid; justify-items: center; gap: 0.5rem; padding: 2rem 0; color: var(--muted); }
+.hr-wait h3 { color: var(--chalk); margin: 0.5rem 0 0; }
 
-.step-card.revealed .step-card-inner {
-    transform: rotateY(180deg);
-}
-
-.step-card-face {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    -webkit-backface-visibility: hidden; /* Safari */
-    backface-visibility: hidden;
-    border-radius: 8px;
-    background-size: contain;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-
-.step-card-front {
-    background-color: #B71C1C;
-    background-image:
-        repeating-linear-gradient(45deg, #C62828 25%, transparent 25%, transparent 75%, #C62828 75%, #C62828),
-        repeating-linear-gradient(-45deg, #C62828 25%, transparent 25%, transparent 75%, #C62828 75%, #C62828);
-    background-size: 20px 20px;
-}
-
-.step-card-back {
-    background-color: white;
-    transform: rotateY(180deg);
-}
+.hr-win-title { font-size: clamp(1.6rem, 7vw, 2.2rem); margin-top: 0.5rem; }
+.hr-win-sub { color: var(--muted); margin: 0 0 1rem; }
+#distribution-form { width: 100%; max-width: 440px; text-align: left; }
+.hr-remaining { text-align: center; font-weight: 600; margin: 0 0 0.75rem; color: var(--muted); }
+.hr-remaining .num { color: var(--chalk); font-size: 1.2rem; }
+#sips-remaining.text-danger { color: var(--chip) !important; }
+.hr-dist-list { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 8px; }
+.hr-dist-row { display: grid; grid-template-columns: 1fr 170px; align-items: center; gap: 0.75rem; padding: 0.4rem 0.4rem 0.4rem 0.9rem; border-radius: var(--r-md); background: rgba(17,55,44,0.75); border: 1px solid var(--line); }
+.hr-dist-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-dist-row .tp-stepper { grid-template-columns: 44px 1fr 44px; }
+.hr-dist-row .tp-stepper button, .hr-dist-row .tp-input { min-height: 44px; height: 44px; }
+#distribute-btn { width: 100%; }

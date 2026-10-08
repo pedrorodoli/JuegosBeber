@@ -1,36 +1,69 @@
 const socket = io();
 
 // User setup
-let userUuid = localStorage.getItem('userUuid');
+let userUUID = localStorage.getItem('userUUID');
 let storedName = localStorage.getItem('userName');
 
-if (!userUuid) {
-    userUuid = 'xxxx-xxxx-xxxx-xxxx'.replace(/[x]/g, () => (Math.random()*16|0).toString(16));
-    localStorage.setItem('userUuid', userUuid);
+if (!userUUID) {
+    userUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+    localStorage.setItem('userUUID', userUUID);
 }
-
-// Always prompt for name, defaulting to stored one
-let userName = prompt("Ingresa tu nombre:", storedName || "");
-if (!userName || userName.trim() === "") {
-    userName = storedName || `Jugador ${Math.floor(Math.random() * 1000)}`;
-}
-localStorage.setItem('userName', userName);
-
-
-const password = sessionStorage.getItem(`roomPassword_${roomId}`);
-
-// Join Room
-socket.emit('joinRoom', { 
-    gameType: gameType, 
-    roomId: roomId, 
-    user: { uuid: userUuid, name: userName, password: password } 
-});
 
 const gameArea = document.getElementById('game-area');
 const adminControls = document.getElementById('admin-controls');
 const btnStart = document.getElementById('btn-start');
 
+// We'll show a name entry if no name is stored
+const nameModal = document.getElementById('name-modal');
+const nameInput = document.getElementById('name-input');
+const joinGameBtn = document.getElementById('join-game-btn');
+
+function joinRoom(name) {
+    const password = sessionStorage.getItem(`roomPassword_${roomId}`);
+    socket.emit('joinRoom', { 
+        gameType: gameType, 
+        roomId: roomId, 
+        user: { uuid: userUUID, name: name, password: password } 
+    });
+}
+
+if (storedName) {
+    joinRoom(storedName);
+} else {
+    if (nameModal) {
+        nameModal.style.display = 'flex';
+    } else {
+        // Fallback if modal not added to EJS yet
+        let userName = prompt("Ingresa tu nombre:");
+        if (!userName || userName.trim() === "") {
+            userName = `Jugador ${Math.floor(Math.random() * 1000)}`;
+        }
+        localStorage.setItem('userName', userName);
+        joinRoom(userName);
+    }
+}
+
+if (nameInput) nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGameBtn.click(); });
+
+if (joinGameBtn) {
+    joinGameBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return alert('Escribe tu nombre para entrar.'); }
+        localStorage.setItem('userName', name);
+        nameModal.style.display = 'none';
+        joinRoom(name);
+    });
+}
+
 let currentGameState = null;
+let lastTargetShown = null;
+
+function imEsc(str) {
+    return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // --- Socket Events ---
 
@@ -49,7 +82,7 @@ socket.on('error', (err) => {
 
 function renderGame(gameState) {
     // Show admin controls if current user is creator
-    if (gameState.roomAdminId === userUuid) {
+    if (gameState.roomAdminId === userUUID) {
         adminControls.style.display = 'block';
     } else {
         adminControls.style.display = 'none';
@@ -65,30 +98,25 @@ function renderGame(gameState) {
 }
 
 function renderWaiting(gameState) {
+    lastTargetShown = null;
     const playerCount = gameState.players.length;
+    const isAdmin = gameState.roomAdminId === userUUID;
     let html = `
-        <h1 class="mb-4">Sala de Espera</h1>
-        <p class="lead">Esperando a que el administrador inicie la partida...</p>
-        <div class="mt-4">
-            <h3>Jugadores conectados (${playerCount}):</h3>
-            <ul class="list-group list-group-flush bg-transparent">
+        <h1 class="im-title">Sala de espera</h1>
+        <p class="g-sub">${isAdmin ? 'Reparte cuando estéis todos dentro.' : 'Esperando a que el anfitrión reparta.'}</p>
+        <div class="im-players">
+            <h3>En la sala <span class="num">${playerCount}</span></h3>
+            <ul class="im-player-list" id="im-player-list"></ul>
+        </div>
     `;
 
-    gameState.players.forEach(p => {
-        html += `<li class="list-group-item bg-transparent text-white border-bottom border-secondary">
-                    ${p.name} ${p.uuid === userUuid ? '(Tú)' : ''}
-                 </li>`;
-    });
-
-    html += `</ul></div>`;
-    
-    if (gameState.roomAdminId === userUuid) {
-        if (playerCount < 2) {
-            html += `<div class="alert alert-warning mt-3">Se necesitan al menos 2 jugadores para empezar.</div>`;
-        }
+    if (isAdmin && playerCount < 4) {
+        html += `<div class="im-note"><i class="bi bi-people"></i> Hacen falta al menos 4 jugadores para que haya misterio.</div>`;
     }
 
     gameArea.innerHTML = html;
+    const list = document.getElementById('im-player-list');
+    gameState.players.forEach(p => list.appendChild(tpPlayerChip(p.name, { offline: p.online === false, me: p.uuid === userUUID })));
     
     // Disable start button if not enough players logic moved to click handler for better UX (toast)
     // But we can also visually disable it here if we wanted to be strict. 
@@ -98,18 +126,26 @@ function renderWaiting(gameState) {
 
 function renderPlaying(gameState) {
     const assignments = gameState.assignments || {};
-    const myTargetUuid = assignments[userUuid];
+    const myTargetUuid = assignments[userUUID];
     
     // Find target name
     const targetPlayer = gameState.players.find(p => p.uuid === myTargetUuid);
     const targetName = targetPlayer ? targetPlayer.name : "???";
 
+    const isNew = lastTargetShown !== (myTargetUuid || targetName);
+    lastTargetShown = myTargetUuid || targetName;
     let html = `
-        <h1>¡Juego en Curso!</h1>
-        <div class="target-card">
-            <p class="instruction">Debes imitar a:</p>
-            <div class="target-name">${targetName}</div>
+        <h1 class="im-title">Partida en curso</h1>
+        <div class="target-card${isNew ? ' is-new' : ''}">
+            <div class="target-inner">
+                <div class="target-face target-back" aria-hidden="true"><i class="bi bi-incognito"></i></div>
+                <div class="target-face target-front">
+                    <p class="instruction">Tienes que imitar a</p>
+                    <div class="target-name">${imEsc(targetName)}</div>
+                </div>
+            </div>
         </div>
+        <p class="im-hint"><i class="bi bi-eye-slash"></i> Que nadie vea tu pantalla.</p>
     `;
 
     gameArea.innerHTML = html;
@@ -124,18 +160,16 @@ function renderFinished(gameState) {
 if (btnStart) {
     btnStart.addEventListener('click', () => {
         // Use currentGameState for accurate player count
-        if (!currentGameState || !currentGameState.players || currentGameState.players.length < 2) {
+        if (!currentGameState || !currentGameState.players || currentGameState.players.length < 4) {
             Toastify({
-                text: "No puedes repartir porque estás solo :(",
+                text: "Hacen falta al menos 4 personas para jugar al Imitador",
                 duration: 3000,
                 gravity: "top",
                 position: "center",
-                style: {
-                    background: "linear-gradient(to right, #ff5f6d, #ffc371)",
-                }
+                className: 'tp-toast--drink'
             }).showToast();
             return;
         }
-        socket.emit('imitador:startGame', { roomId, userId: userUuid });
+        socket.emit('imitador:startGame', { roomId, userId: userUUID });
     });
 }

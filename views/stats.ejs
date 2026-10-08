@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Estadísticas · JuegosBeber</title>
+    <link rel="stylesheet" href="/css/stats.css">
+</head>
+<body class="stats">
+    <header class="st-top">
+        <a href="/" class="st-brand" aria-label="Ir al inicio">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="3.5" width="17" height="24" rx="3.5" transform="rotate(-10 13.5 15.5)" fill="#eef1ea"/><rect x="10" y="5" width="17" height="24" rx="3.5" transform="rotate(8 18.5 17)" fill="#174536" stroke="#eef1ea" stroke-width="1.5"/><circle cx="19" cy="17" r="4.2" fill="#ff5a3c"/></svg>
+            <span>Estadísticas</span>
+        </a>
+        <span class="st-live" id="liveBadge" title="Personas en la web ahora"><i></i><b id="liveCount">0</b> ahora</span>
+        <button class="st-icon-btn" id="btnRefresh" aria-label="Actualizar"><i class="bi bi-arrow-clockwise"></i></button>
+    </header>
+
+    <nav class="st-filters" aria-label="Filtros">
+        <div class="st-seg" role="tablist" id="rangeSeg">
+            <button data-range="today" class="is-on">Hoy</button>
+            <button data-range="yesterday">Ayer</button>
+            <button data-range="7days">7 días</button>
+            <button data-range="30days">30 días</button>
+            <button data-range="all">Todo</button>
+        </div>
+        <div class="st-chips" id="osChips">
+            <button data-os="all" class="is-on">Todos</button>
+            <button data-os="Android"><i class="bi bi-android2"></i> Android</button>
+            <button data-os="iOS"><i class="bi bi-apple"></i> iOS</button>
+            <button data-os="Windows"><i class="bi bi-windows"></i> Windows</button>
+            <button data-os="macOS"><i class="bi bi-laptop"></i> macOS</button>
+            <button data-os="Linux"><i class="bi bi-ubuntu"></i> Linux</button>
+        </div>
+    </nav>
+
+    <main class="st-main" id="main">
+        <!-- KPIs -->
+        <section class="st-kpis">
+            <article class="st-kpi st-kpi--live">
+                <span class="st-kpi-label"><i class="bi bi-broadcast"></i> En la web ahora</span>
+                <strong class="st-kpi-num num" id="kpiActive">0</strong>
+                <span class="st-kpi-sub" id="kpiActiveSub">Nadie conectado</span>
+            </article>
+            <article class="st-kpi">
+                <span class="st-kpi-label"><i class="bi bi-people"></i> Visitantes</span>
+                <strong class="st-kpi-num num" id="kpiVisitors">0</strong>
+                <span class="st-delta" id="dVisitors"></span>
+            </article>
+            <article class="st-kpi">
+                <span class="st-kpi-label"><i class="bi bi-file-earmark-text"></i> Páginas vistas</span>
+                <strong class="st-kpi-num num" id="kpiPageviews">0</strong>
+                <span class="st-delta" id="dPageviews"></span>
+            </article>
+            <article class="st-kpi">
+                <span class="st-kpi-label"><i class="bi bi-lightning-charge"></i> Hora punta</span>
+                <strong class="st-kpi-num st-kpi-num--sm num" id="kpiPeak">--:--</strong>
+                <span class="st-kpi-sub"><span class="num" id="kpiAvgDay">0</span> visitantes/día · <span class="num" id="kpiPpv">0</span> págs/visita</span>
+            </article>
+        </section>
+
+        <!-- Ahora mismo: salas y jugadores -->
+        <section class="st-card" id="cardLive">
+            <header class="st-card-head">
+                <h2>Ahora mismo</h2>
+                <span class="st-pill" id="roomsPill">0 salas</span>
+            </header>
+            <div class="st-live-games" id="liveGames"></div>
+            <details class="st-more" id="liveRoomsMore">
+                <summary>Ver salas abiertas</summary>
+                <ul class="st-rooms" id="liveRooms"></ul>
+            </details>
+            <details class="st-more">
+                <summary>Quién está conectado</summary>
+                <ul class="st-people" id="livePeople"></ul>
+            </details>
+        </section>
+
+        <!-- Evolución -->
+        <section class="st-card" id="cardTimeline">
+            <header class="st-card-head">
+                <h2>Evolución</h2>
+                <div class="st-legend"><span class="lg lg-a">Visitas</span><span class="lg lg-b">Visitantes</span></div>
+            </header>
+            <div class="st-chart" id="timeline">
+                <svg id="tlSvg" viewBox="0 0 600 220" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <div class="st-tip" id="tlTip" hidden></div>
+            </div>
+            <div class="st-axis" id="tlAxis"></div>
+        </section>
+
+        <!-- Juegos más jugados -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>Juegos más jugados</h2><span class="st-hint">partidas (sesiones)</span></header>
+            <ol class="st-bars" id="games"></ol>
+        </section>
+
+        <!-- De dónde vienen -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>¿De dónde vienen?</h2><span class="st-hint">sesiones</span></header>
+            <ol class="st-bars" id="sources"></ol>
+        </section>
+
+        <!-- Horas -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>¿A qué hora se juega?</h2><span class="st-hint" id="hoursHint"></span></header>
+            <div class="st-hours" id="hours"></div>
+            <div class="st-hours-axis"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span></div>
+        </section>
+
+        <!-- Lugares -->
+        <section class="st-card">
+            <header class="st-card-head">
+                <h2>Lugares</h2>
+                <div class="st-tabs" id="placeTabs"><button data-t="cities" class="is-on">Ciudades</button><button data-t="countries">Países</button></div>
+            </header>
+            <ol class="st-bars" id="places"></ol>
+            <details class="st-more" id="mapMore">
+                <summary>Ver en el mapa</summary>
+                <div class="st-map" id="geoMap"></div>
+            </details>
+        </section>
+
+        <!-- Dispositivos -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>Dispositivos</h2></header>
+            <div class="st-stack" id="devices"></div>
+            <div class="st-two">
+                <div><h3>Sistemas</h3><ol class="st-bars st-bars--sm" id="systems"></ol></div>
+                <div><h3>Navegadores</h3><ol class="st-bars st-bars--sm" id="browsers"></ol></div>
+            </div>
+        </section>
+
+        <!-- Páginas -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>Páginas más vistas</h2></header>
+            <ol class="st-bars" id="pages"></ol>
+        </section>
+
+        <!-- Actividad -->
+        <section class="st-card">
+            <header class="st-card-head"><h2>Actividad en directo</h2><span class="st-pill st-pill--off" id="feedStatus">Conectando…</span></header>
+            <ul class="st-feed" id="feed"></ul>
+        </section>
+
+        <footer class="st-foot">
+            <span class="st-updated" id="updated"></span>
+            <button class="tp-btn tp-btn--ghost tp-btn--sm st-danger" id="btnReset"><i class="bi bi-trash3"></i> Borrar estadísticas</button>
+        </footer>
+    </main>
+
+    <!-- Acceso -->
+    <div class="tp-dialog-backdrop st-login" id="login" hidden>
+        <form class="tp-dialog" id="loginForm">
+            <h2>Estadísticas</h2>
+            <p>Introduce la clave de acceso.</p>
+            <input type="password" class="tp-input" id="loginKey" placeholder="Clave" autocomplete="current-password" required>
+            <p class="tp-form-error" id="loginError" hidden>Clave incorrecta.</p>
+            <button class="btn-custom tp-btn--block" type="submit">Entrar</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/stats.js"></script>
+</body>
+</html>

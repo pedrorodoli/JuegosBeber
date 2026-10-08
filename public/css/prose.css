@@ -1,0 +1,18 @@
+/* Páginas de texto legal */
+.prose-page { display: flex; flex-direction: column; }
+.prose { width: 100%; max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 3rem; color: var(--chalk-2); }
+.prose h1 { font-size: clamp(2rem, 7vw, 2.8rem); letter-spacing: -0.04em; color: var(--chalk); margin-bottom: 0.4rem; }
+.prose-date { color: var(--muted); font-size: 0.9rem; margin: 0 0 2rem; }
+.prose h2 { font-size: 1.2rem; letter-spacing: -0.02em; margin: 2rem 0 0.6rem; }
+.prose p, .prose li { line-height: 1.7; max-width: 65ch; }
+.prose ul { padding-left: 1.2rem; display: grid; gap: 0.5rem; }
+.prose li::marker { color: var(--chip); }
+.prose strong { color: var(--chalk); font-weight: 600; }
+.prose .tp-btn { margin-top: 2rem; }
+.contact-email { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font: 700 clamp(1.2rem, 5vw, 1.6rem)/1.2 var(--font-display); color: var(--chalk); text-decoration: none; border-bottom: 2px solid var(--chip); padding-bottom: 2px; }
+.restart-box { margin-top: 3rem; padding: 1.25rem; }
+.restart-box h2 { margin-top: 0; }
+.restart-status { margin-top: 0.9rem; font-weight: 600; }
+.restart-status.is-info { color: var(--chalk-2); }
+.restart-status.is-ok { color: var(--win); }
+.restart-status.is-error { color: #ffb3a4; }

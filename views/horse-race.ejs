@@ -1,108 +1,123 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <%- include('partials/head') %>
     <title><%= title %></title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/game.css">
     <link rel="stylesheet" href="/css/horse_race_game.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
-    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
-    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
-     crossorigin="anonymous"></script>
 </head>
-<body class="horse-race-active"> <!-- Aplicamos clase para modo de pantalla completa -->
-    <%- include('partials/header') %>
+<body class="game horse-race-active">
+    <%- include('partials/game_bar', { gameType: 'horse-race', title: title, roomId: roomId }) %>
+
     <div class="horse-race-wrapper">
         <div class="main-container">
-        <!-- 1. Vista de Countdown / Apuestas -->
-        <div id="countdown-view" class="card text-center">
-            <div id="admin-controls" class="card-footer" style="display: none;">
-                <button id="start-race-btn" class="btn btn-success btn-lg">Empezar Carrera</button>
-            </div>
-            <div class="card-header"><h2 id="race-name-countdown"></h2></div>
-            <div class="card-body">
-                <div id="race-countdown"><h3>Cargando...</h3></div>
-                <hr>
-                <div id="bet-form-container">
-                    <h4>¡Haz tu apuesta!</h4>
-                    <form id="join-race-form">
-                        <div class="row g-3 align-items-end justify-content-center">
-                            <div class="col-md-3"><label for="playerName" class="form-label">Tu Nombre</label><input type="text" class="form-control" id="playerName" required></div>
-                            <div class="col-md-2"><label for="horseSelection" class="form-label">Elige Caballo</label><select class="form-select" id="horseSelection" required><option value="Oros">Oros</option><option value="Copas">Copas</option><option value="Espadas">Espadas</option><option value="Bastos">Bastos</option></select></div>
-                            <div class="col-md-2"><label for="betAmount" class="form-label">Apuesta (Tragos)</label><input type="number" class="form-control" id="betAmount" required min="1"></div>
-                            <div class="col-md-2"><button type="submit" class="btn btn-success w-100">¡Apostar!</button></div>
-                        </div>
-                    </form>
-                </div>
-                <div id="waiting-room-container" style="display: none;">
-                    <h4>Sala de Espera - Jugadores en la carrera:</h4>
-                    <ul class="list-group" id="player-list-waiting"></ul>
-                </div>
-            </div>
-        </div>
 
-        <!-- 2. Vista de la Carrera -->
-        <div id="race-view" class="card" style="display: none;">
-            <div class="card-header text-center"><h2 id="race-name-running"></h2></div>
-            <div class="card-body race-body">
-                <div class="race-player-list-container">
-                    <h5>Apuestas</h5>
-                    <ul class="list-group" id="player-list-running"></ul>
-                </div>
+        <!-- 1. Apuestas y sala de espera -->
+        <section id="countdown-view" class="hr-view">
+            <header class="hr-head">
+                <h2 id="race-name-countdown" class="hr-room"></h2>
+                <div id="race-countdown" hidden><h3>Cargando...</h3></div>
+            </header>
+
+            <div id="bet-form-container">
+                <h1 class="g-question">¿Por qué caballo apuestas?</h1>
+                <form id="join-race-form" class="hr-form">
+                    <div class="horse-picker" role="group" aria-label="Elige caballo">
+                            <button type="button" class="horse-pick" data-horse="Oros" aria-pressed="false">
+                                <img src="/images/cartas/11_OROS.png" alt="">
+                                <span>Oros</span>
+                            </button>
+                            <button type="button" class="horse-pick" data-horse="Copas" aria-pressed="false">
+                                <img src="/images/cartas/11_COPAS.png" alt="">
+                                <span>Copas</span>
+                            </button>
+                            <button type="button" class="horse-pick" data-horse="Espadas" aria-pressed="false">
+                                <img src="/images/cartas/11_ESPADAS.png" alt="">
+                                <span>Espadas</span>
+                            </button>
+                            <button type="button" class="horse-pick" data-horse="Bastos" aria-pressed="false">
+                                <img src="/images/cartas/11_BASTOS.png" alt="">
+                                <span>Bastos</span>
+                            </button>
+                    </div>
+                    <select id="horseSelection" required hidden>
+                        <option value="Oros">Oros</option><option value="Copas">Copas</option><option value="Espadas">Espadas</option><option value="Bastos">Bastos</option>
+                    </select>
+                    <div class="hr-fields">
+                        <div class="tp-field">
+                            <label class="tp-label" for="playerName">Tu nombre</label>
+                            <input class="tp-input" type="text" id="playerName" required maxlength="24" autocomplete="nickname" placeholder="Cómo te verán">
+                        </div>
+                        <div class="tp-field">
+                            <label class="tp-label" for="betAmount">Tragos que apuestas</label>
+                            <div class="tp-stepper">
+                                <button type="button" data-step="-1" aria-label="Menos">−</button>
+                                <input class="tp-input" type="number" inputmode="numeric" id="betAmount" required min="1" value="1">
+                                <button type="button" data-step="1" aria-label="Más">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-custom hr-submit">Apostar</button>
+                </form>
+            </div>
+
+            <div id="waiting-room-container" style="display: none;">
+                <h1 class="g-question">Apuestas hechas</h1>
+                <p class="g-sub hr-waiting-sub">La carrera empieza cuando el anfitrión la lance.</p>
+                <ul class="hr-bets" id="player-list-waiting"></ul>
+            </div>
+
+            <div id="admin-controls" class="hr-admin" style="display: none;">
+                <button id="start-race-btn" class="btn-custom"><i class="bi bi-flag-fill"></i> Empezar carrera</button>
+            </div>
+        </section>
+
+        <!-- 2. La carrera -->
+        <section id="race-view" class="hr-view" style="display: none;">
+            <h2 id="race-name-running" class="hr-running-title"></h2>
+            <div class="race-body">
                 <div class="race-track-container">
-                    <div id="last-card-drawn" class="mb-3"></div>
-                    <div class="race-track">
+                    <div id="last-card-drawn"></div>
+                    <div class="race-stage" id="race-track" data-levels="5">
+                        <svg class="race-svg" id="race-svg" aria-hidden="true"></svg>
                         <div id="step-cards-container">
-                            <!-- Las cartas de los escalones se insertarán aquí -->
+                            <!-- Cartas de los escalones -->
                         </div>
-                        <div class="finish-line"></div>
-                        <!-- Las cartas de penalización se añadirán aquí con JS -->
-                         <div class="horse-lane" id="lane-Oros">
-  <div class="horse horse-oros" id="horse-Oros">
-    🐎
-    <span class="horse-label">O</span>
-  </div>
-</div>
-
-<div class="horse-lane" id="lane-Copas">
-  <div class="horse horse-copas" id="horse-Copas">
-    🐎
-    <span class="horse-label">C</span>
-  </div>
-</div>
-
-<div class="horse-lane" id="lane-Espadas">
-  <div class="horse horse-espadas" id="horse-Espadas">
-    🐎
-    <span class="horse-label">E</span>
-  </div>
-</div>
-
-<div class="horse-lane" id="lane-Bastos">
-  <div class="horse horse-bastos" id="horse-Bastos">
-    🐎
-    <span class="horse-label">B</span>
-  </div>
-</div>
-
+                        <div class="horse horse-oros" id="horse-Oros" data-lane="0" data-pos="0">
+                            <span class="horse-shadow" aria-hidden="true"></span>
+                            <img class="horse-img" src="/images/caballos/oros.webp" alt="Caballo de Oros">
+                        </div>
+                        <div class="horse horse-copas" id="horse-Copas" data-lane="1" data-pos="0">
+                            <span class="horse-shadow" aria-hidden="true"></span>
+                            <img class="horse-img" src="/images/caballos/copas.webp" alt="Caballo de Copas">
+                        </div>
+                        <div class="horse horse-espadas" id="horse-Espadas" data-lane="2" data-pos="0">
+                            <span class="horse-shadow" aria-hidden="true"></span>
+                            <img class="horse-img" src="/images/caballos/espadas.webp" alt="Caballo de Espadas">
+                        </div>
+                        <div class="horse horse-bastos" id="horse-Bastos" data-lane="3" data-pos="0">
+                            <span class="horse-shadow" aria-hidden="true"></span>
+                            <img class="horse-img" src="/images/caballos/bastos.webp" alt="Caballo de Bastos">
+                        </div>
+                        <div class="lane-labels"><span class="lane-label" id="label-Oros" data-lane="0">Oros</span><span class="lane-label" id="label-Copas" data-lane="1">Copas</span><span class="lane-label" id="label-Espadas" data-lane="2">Espadas</span><span class="lane-label" id="label-Bastos" data-lane="3">Bastos</span></div>
                     </div>
                 </div>
+                <div class="race-player-list-container">
+                    <h3>Apuestas</h3>
+                    <ul class="hr-bets" id="player-list-running"></ul>
+                </div>
             </div>
-        </div>
+        </section>
 
-        <!-- 3. Vista de Resultados -->
-        <div id="results-view" class="card" style="display: none;">
-            <div class="card-header"><h2 id="race-name-finished"></h2></div>
-            <div id="results-body" class="card-body">
-                <!-- El contenido de los resultados se inyectará aquí -->
+        <!-- 3. Resultados -->
+        <section id="results-view" class="hr-view" style="display: none;">
+            <h2 id="race-name-finished" class="hr-room"></h2>
+            <div id="results-body">
+                <!-- Resultados -->
             </div>
+        </section>
         </div>
-    </div>
-
     </div>
 
     <script>
@@ -110,12 +125,8 @@
         const ROOM_ID = "<%= roomId %>";
     </script>
     <script src="/socket.io/socket.io.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <%- include('partials/game_rules', { gameType: 'horse-race' }) %>
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script src="/js/horse-race.js"></script> <!-- Script específico para la carrera -->
+    <script src="/js/toastify.min.js"></script>
+    <script src="/js/horse-race.js"></script>
+    <%- include('partials/analytics') %>
 </body>
 </html>

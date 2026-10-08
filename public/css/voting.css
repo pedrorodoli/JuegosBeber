@@ -1,223 +1,90 @@
+/* Votaciones */
 
-/* Styles for the voting options grid */
-.options-grid {
-    display: grid;
-    grid-template-columns: 1fr; /* Default to single column (column-layout) */
-    gap: 1rem; /* Spacing between options */
-    padding: 0 1rem; /* Add some horizontal padding */
-    max-width: 900px; /* Limit width for better readability */
-    margin: 0 auto;
-    background-color: transparent; /* Ensure options grid has transparent background */
-}
+.voting-wrapper { flex: 1; display: flex; justify-content: center; padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px)); }
+#game-voting { width: 100%; max-width: 560px; display: flex; flex-direction: column; align-items: stretch; }
+#game-page-title { text-align: center; margin: 0.75rem auto 1.25rem; max-width: 20ch; }
+#game-container { display: block; }
 
-.options-grid.two-column-layout {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Two columns for 8+ options, more flexible min-width */
-}
-
-/* Styles for individual voting option buttons with progress bar */
-.option-btn-progress {
-    position: relative;
-    background-color: rgba(255, 255, 255, 0.05); /* Make the "empty" part slightly darker/different */
-    padding: 1rem 1.5rem; /* Adjusted padding */
-    border-radius: 10px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 60px;
-    cursor: pointer;
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    border: 2px solid transparent; /* Default border */
-    width: 100%; /* Ensure options take full width of their grid cell */
-    box-sizing: border-box; /* Include padding and border in the element's total width and height */
-}
-
-.option-btn-progress.voted {
-    border: 2px solid var(--accent-pastel); /* Highlight voted option */
-    box-shadow: 0 0 15px var(--accent-pastel);
-}
-
-/* Removed @keyframes pulse-progress as it's no longer desired for voting buttons */
-
-.option-btn-progress .progress-bar {
-    background-color: var(--primary-pastel); /* Use primary pastel color */
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    border-radius: 10px;
-    z-index: 1;
-    transition: width 0.5s ease-in-out; /* Smooth transition for width changes */
-    min-width: 0%;
-    /* Removed animation: pulse-progress */
-}
-
-.option-btn-progress .option-content {
-    position: relative;
-    z-index: 2;
-    width: 100%; /* Ensure content takes full width */
-    display: flex;
-    justify-content: space-between; /* Space out name and percentage */
-    align-items: center;
-    color: var(--text-light); /* Ensure text color is visible */
-    font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
-}
-
-/* Removed .option-btn-progress:hover styles */
-
-.option-btn-progress:active {
-    transform: scale(0.98);
-}
-
-.option-name{font-size:1.1rem;font-weight:600; color: var(--text-light); text-shadow: 1px 1px 2px rgba(0,0,0,0.7);}
-.vote-percentage{font-size:.9rem;opacity:.8;margin-top:.25rem; color: var(--text-light); text-shadow: 1px 1px 2px rgba(0,0,0,0.7);}
-
-/* Styles for the top reverse countdown progress bar */
-.countdown-progress-container {
-    width: 100%;
-    height: 30px; /* Height of the progress bar */
-    background-color: var(--bg-dark); /* Background of the container */
-    border-radius: 15px;
-    overflow: hidden;
-    position: relative;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-
+/* Cuenta atrás */
+#game-countdown { min-height: 28px; display: grid; gap: 8px; justify-items: center; }
+#game-countdown:empty { min-height: 0; }
+.countdown-bar { width: 100%; height: 6px; border-radius: 6px; background: var(--felt-600); overflow: hidden; }
 .countdown-progress-bar {
-    height: 100%;
-    width: 100%; /* Starts full */
-    background-color: var(--primary-pastel); /* Color of the progress bar */
-    border-radius: 15px;
-    position: absolute;
-    top: 0;
-    right: 0; /* Aligns to the right for reverse effect */
-    transition: width 1s linear; /* Smooth transition for width changes */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-dark); /* Text color for the countdown */
-    font-weight: bold;
-    font-size: 1rem;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+  --left: 1;
+  width: 100%; height: 100%; border-radius: inherit; background: var(--chalk);
+  transform-origin: left center; transform: scaleX(var(--left));
+  transition: transform 1s linear, background-color 300ms ease;
 }
+#game-countdown > .countdown-progress-bar { display: none; } /* barra suelta inicial del HTML */
+.countdown-text { font: 600 1rem/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--chalk-2); }
+#game-countdown.is-urgent .countdown-progress-bar { background: var(--chip); }
+#game-countdown.is-urgent .countdown-text { color: var(--chip); animation: vt-tick 1s ease-in-out infinite; }
+@keyframes vt-tick { 50% { opacity: 0.55; } }
+.vt-closed { font-weight: 600; font-size: 0.85rem; color: var(--muted); padding: 0.3rem 0.75rem; border-radius: var(--r-pill); border: 1px solid var(--line); }
 
-.countdown-text {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-light); /* Ensure text is visible over the bar */
-    font-weight: bold;
-    font-size: 1rem;
-    z-index: 2; /* Above the progress bar */
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
+/* Opciones */
+.options-grid { display: grid; gap: 10px; width: 100%; }
+.options-grid.two-column-layout { grid-template-columns: 1fr 1fr; }
+.option-btn-progress {
+  position: relative; overflow: hidden; cursor: pointer;
+  min-height: 62px; border-radius: var(--r-md);
+  background: rgba(17, 55, 44, 0.85); border: 1.5px solid var(--line);
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  transition: transform 140ms var(--ease-out), border-color 200ms ease;
+  animation: tp-rise 380ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms);
 }
-
-/* Ensure full height and background for voting page */
-html, body {
-    height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden; /* Prevent horizontal scroll */
+.option-btn-progress:active { transform: scale(0.98); }
+.option-btn-progress .progress-bar {
+  --pct: 0;
+  position: absolute; inset: 0; width: 100%;
+  background: linear-gradient(90deg, rgba(45, 110, 88, 0.95), rgba(45, 110, 88, 0.7));
+  transform-origin: left center; transform: scaleX(calc(var(--pct) / 100));
+  transition: transform 600ms var(--ease-out);
 }
-
-body {
-    background-color: var(--bg-dark); /* General background for the page */
-    font-family: var(--font-body);
-    color: var(--text-light); /* Default text color */
+.option-content { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; min-height: 62px; }
+.option-check {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  border: 1.5px solid var(--line-strong); color: transparent; font-size: 0.95rem;
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, transform 260ms var(--ease-out);
 }
+.option-name { font-weight: 600; font-size: 1.05rem; text-align: left; overflow-wrap: anywhere; }
+.vote-percentage { font-weight: 600; color: var(--chalk-2); min-width: 2ch; text-align: right; }
+.option-btn-progress.voted { border-color: var(--chip); }
+.option-btn-progress.voted .option-check { background: var(--chip); border-color: var(--chip); color: var(--chip-ink); transform: scale(1.08); }
+.option-btn-progress.voted .progress-bar { background: linear-gradient(90deg, rgba(255, 90, 60, 0.38), rgba(255, 90, 60, 0.2)); }
+@media (hover: hover) and (pointer: fine) { .option-btn-progress:not(.voted):hover { border-color: var(--line-strong); } }
+.two-column-layout .option-content { padding: 0.75rem; gap: 0.5rem; }
+.two-column-layout .option-name { font-size: 0.95rem; }
+.two-column-layout .option-check { display: none; }
+.two-column-layout .option-content { grid-template-columns: 1fr auto; }
+.voting-ended .option-btn-progress { cursor: default; }
 
-.main-container {
-    width: 100%;
-    height: 100%; /* Take full height */
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* Center content vertically */
-    align-items: center; /* Center content horizontally */
-    padding: 1rem;
-    box-sizing: border-box;
+/* Espera */
+.vt-waiting { display: grid; justify-items: center; text-align: center; gap: 0.5rem; }
+.vt-preview { list-style: none; margin: 0 0 0.75rem; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.vt-preview li { padding: 0.45rem 0.9rem; border-radius: var(--r-pill); background: rgba(17,55,44,0.85); border: 1px solid var(--line); font-weight: 600; animation: tp-pop 300ms var(--ease-out) both; }
+.vt-start { min-width: 230px; margin-top: 0.5rem; }
+
+/* Resultados */
+#voting-results-display { text-align: center; }
+.results-winner { display: grid; justify-items: center; gap: 0.25rem; margin-bottom: 1.5rem; }
+.vt-label { font-size: 0.9rem; font-weight: 600; color: var(--chip); }
+.vt-winner {
+  font: 800 clamp(2.6rem, 13vw, 4.4rem)/0.95 var(--font-display); letter-spacing: -0.05em; text-wrap: balance;
+  animation: vt-reveal 820ms var(--ease-out) both; animation-delay: 120ms;
 }
+@keyframes vt-reveal { from { opacity: 0; transform: translateY(18px) scale(0.94); filter: blur(10px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.vt-votes { color: var(--muted); margin: 0.35rem 0 0; animation: tp-fade 400ms ease 600ms both; }
 
-#game-voting {
-    background-color: var(--bg-dark); /* Set background for voting section */
-    padding: 2rem 1rem; /* Add some padding */
-    border-radius: 15px; /* Rounded corners */
-    margin-top: 20px; /* Space from top */
-    width: 100%; /* Take full width of main-container */
-    max-width: 900px; /* Match options-grid max-width */
-    box-sizing: border-box;
+.vt-ranking { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; gap: 8px; text-align: left; }
+.vt-rank {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr auto; gap: 0.75rem; align-items: center;
+  padding: 0.7rem 0.95rem; border-radius: var(--r-sm); background: rgba(17,55,44,0.75); border: 1px solid var(--line);
+  animation: tp-rise 380ms var(--ease-out) both; animation-delay: calc(700ms + var(--i, 0) * 60ms);
 }
-
-        /* Contenedor de opciones de voto */
-        #game-container {
-            display: grid;
-            gap: 1rem;
-            justify-items: center;
-            align-items: center;
-            margin-top: 2rem;
-            padding: 0 1rem; /* Add some horizontal padding */
-        }
-
-#result-overlay {
-    display: none; /* Hide by default */
-}
-
-/* Button Styles (for 'Iniciar Votación' and similar) */
-.btn {
-    padding: 0.8rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
-    margin: 0.25rem;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Black border for text */
-}
-
-/* Removed .btn:hover styles as per request */
-
-.btn-primary {
-    background-color: var(--primary-pastel);
-    color: var(--text-dark);
-}
-
-.btn-primary:hover {
-    background-color: var(--accent-pastel); /* Slightly different hover color */
-}
-
-.btn-lg {
-    padding: 1rem 2rem;
-    font-size: 1.2rem;
-}
-
-/* General text styling for titles within voting section */
-#game-voting h1, #game-voting h2, #game-voting h3, #game-voting h4, #game-voting h5, #game-voting h6 {
-    color: var(--text-light);
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-}
-
-/* Responsive styles for voting options */
-@media (max-width: 480px) {
-    .options-grid {
-        padding: 0 0.5rem; /* Reduce padding on very small screens */
-    }
-    .options-grid.two-column-layout {
-        grid-template-columns: 1fr; /* Force single column on very small screens */
-    }
-    .option-btn-progress {
-        padding: 0.8rem 1rem; /* Further reduce padding */
-        min-height: 50px;
-    }
-    .option-name { font-size: 1rem; }
-    .vote-percentage { font-size: 0.8rem; }
-}
+.vt-rank-bar { position: absolute; inset: 0; background: rgba(45,110,88,0.75); transform-origin: left; transform: scaleX(calc(var(--pct) / 100)); animation: vt-grow 700ms var(--ease-out) both; animation-delay: calc(800ms + var(--i, 0) * 60ms); }
+@keyframes vt-grow { from { transform: scaleX(0); } }
+.vt-rank.is-top { border-color: var(--chip); }
+.vt-rank.is-top .vt-rank-bar { background: rgba(255,90,60,0.32); }
+.vt-rank-name, .vt-rank-votes { position: relative; font-weight: 600; }
+.vt-again { width: 100%; }

@@ -34,9 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
             gamePageTitle.textContent = state.title || 'Votación en espera'; // Update page title for waiting phase
             countdownContainer.innerHTML = ''; // Clear previous content
             const isAdmin = state.roomAdminId === userUUID;
-            let waitingHTML = '<div class="text-center"><h2>Esperando a que el administrador inicie la votación...</h2>';
+            const opts = (state.options || []).map(o => `<li>${escapeHTML(o.name)}</li>`).join('');
+            let waitingHTML = `<div class="vt-waiting">${opts ? `<ul class="vt-preview">${opts}</ul>` : ''}<p class="g-sub">${isAdmin ? 'Cuando estéis todos dentro, abre la votación.' : 'Esperando a que el anfitrión abra la votación.'}</p>`;
             if (isAdmin) {
-                waitingHTML += '<button id="start-voting-btn" class="btn btn-primary btn-lg mt-4">Iniciar Votación</button>';
+                waitingHTML += '<button id="start-voting-btn" class="btn-custom vt-start"><i class="bi bi-play-fill"></i> Abrir votación</button>';
             }
             waitingHTML += '</div>';
             waitingMessageContainer.innerHTML = waitingHTML; // Populate waiting message container
@@ -123,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lastAttemptedPassword !== null) { // A password was sent, and it was wrong
                 alert('Contraseña incorrecta. Por favor, inténtalo de nuevo.');
             }
-            const password = prompt('Esta sala está protegida con contraseña. Por favor, introdúcela:');
+            const password = await tpAsk({ title: 'Sala con contraseña', text: 'Pídesela a quien creó la votación.', type: 'password', placeholder: 'Contraseña', submitLabel: 'Entrar' });
             if (password === null) { // User cancelled
                 sessionStorage.removeItem(`roomPassword_${ROOM_ID}`); // Clear any stored password
                 window.location.href = '/';
@@ -149,8 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showVotingResults = (state) => {
         clearInterval(countdownInterval);
-        countdownContainer.innerHTML = "VOTACIÓN CERRADA";
-        gamePageTitle.textContent = "Resultados de la Votación";
+        countdownContainer.innerHTML = '<span class="vt-closed">Votación cerrada</span>';
+        gamePageTitle.textContent = state.title || 'Resultados';
 
         const { options, roomAdminId } = state;
         const isAdmin = roomAdminId === userUUID;
@@ -176,18 +177,25 @@ document.addEventListener('DOMContentLoaded', () => {
              winner.votes = 0;
         }
 
+        const totalVotes = (options || []).reduce((s2, o) => s2 + o.votes, 0);
+        const ranking = [...(options || [])].sort((a, b) => b.votes - a.votes).map((o, i) => {
+            const pct = totalVotes > 0 ? (o.votes / totalVotes) * 100 : 0;
+            const top = winner.votes > 0 && o.votes === winner.votes;
+            return `<li class="vt-rank${top ? ' is-top' : ''}" style="--pct:${pct.toFixed(1)}; --i:${i}"><span class="vt-rank-bar"></span><span class="vt-rank-name">${escapeHTML(o.name)}</span><span class="vt-rank-votes num">${o.votes}</span></li>`;
+        }).join('');
         let resultsHTML = `
-            <div id="voting-results-display" class="results-winner text-center">
-                <h2>${isTie ? 'Ganadores:' : 'Ganador:'}</h2>
-                <h1 class="display-1 my-3">${escapeHTML(winner.name)}</h1>
-                <p class="lead">Con ${winner.votes} voto(s)</p>
+            <div class="results-winner">
+                <span class="vt-label">${isTie ? 'Empate entre' : 'Gana'}</span>
+                <div class="vt-winner">${isTie ? winner.name : escapeHTML(winner.name)}</div>
+                <p class="vt-votes">${winner.votes > 0 ? `${winner.votes} ${winner.votes == 1 ? 'voto' : 'votos'}` : 'Sin votos'}</p>
             </div>
+            ${ranking ? `<ol class="vt-ranking">${ranking}</ol>` : ''}
         `;
 
         if (isAdmin) {
             // Save current settings to localStorage for pre-filling the next form
             localStorage.setItem('lastVotingSettings', JSON.stringify(state.settings));
-            resultsHTML += `<div class="text-center mt-4"><button id="play-again-voting-btn" class="btn btn-primary btn-lg">Crear Nueva Votación</button></div>`;
+            resultsHTML += `<button id="play-again-voting-btn" class="btn-custom vt-again"><i class="bi bi-plus-lg"></i> Nueva votación</button>`;
         }
 
         // Ensure optionsGrid is hidden and results are shown
@@ -254,13 +262,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 optionEl = document.createElement('div');
                 optionEl.className = 'option-btn-progress';
                 optionEl.dataset.option = escapeHTML(option.name);
+                optionEl.setAttribute('role', 'button');
+                optionEl.tabIndex = 0;
+                optionEl.style.setProperty('--i', optionsGrid.children.length);
                 optionEl.innerHTML = `
-                    <div class="progress-bar" style="width: ${percentage.toFixed(1)}%;"></div>
+                    <div class="progress-bar" style="--pct: ${percentage.toFixed(1)};"></div>
                     <div class="option-content">
+                        <span class="option-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                         <span class="option-name">${escapeHTML(option.name)}</span>
-                        <span class="vote-percentage">${option.votes} Votos</span>
+                        <span class="vote-percentage num">${option.votes}</span>
                     </div>
                 `;
+                optionEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); optionEl.click(); } });
                 optionEl.addEventListener('click', () => handleVote(optionEl.dataset.option));
                 optionsGrid.appendChild(optionEl);
             } else {
@@ -269,9 +282,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const optionNameSpan = optionEl.querySelector('.option-name');
                 const votePercentageSpan = optionEl.querySelector('.vote-percentage');
 
-                if (progressBar) progressBar.style.width = `${percentage.toFixed(1)}%`;
-                if (optionNameSpan) optionNameSpan.textContent = escapeHTML(option.name);
-                if (votePercentageSpan) votePercentageSpan.textContent = `${option.votes} Votos`;
+                if (progressBar) progressBar.style.setProperty('--pct', percentage.toFixed(1));
+                if (optionNameSpan) optionNameSpan.textContent = option.name;
+                if (votePercentageSpan && votePercentageSpan.textContent !== String(option.votes)) {
+                    votePercentageSpan.textContent = option.votes;
+                    votePercentageSpan.classList.remove('tp-bump'); void votePercentageSpan.offsetWidth; votePercentageSpan.classList.add('tp-bump');
+                }
             }
 
             // Update voted class
@@ -296,8 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (distance < 0) {
                 clearInterval(countdownInterval);
-                if (countdownText) countdownText.textContent = "VOTACIÓN CERRADA";
-                if (countdownProgressBar) countdownProgressBar.style.width = '0%';
+                if (countdownText) countdownText.textContent = 'Votación cerrada';
+                if (countdownProgressBar) countdownProgressBar.style.setProperty('--left', '0');
                 return;
             }
 
@@ -308,7 +324,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (countdownText) countdownText.textContent = formattedTime;
 
             const remainingPercentage = (distance / totalDuration) * 100;
-            if (countdownProgressBar) countdownProgressBar.style.width = `${remainingPercentage}%`;
+            if (countdownProgressBar) countdownProgressBar.style.setProperty('--left', String(Math.max(0, remainingPercentage) / 100));
+            countdownContainer.classList.toggle('is-urgent', distance < 10000);
         };
 
         updateTimer();

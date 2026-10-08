@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminPanelScreen.classList.remove('hidden');
 
         const adminRoomName = document.getElementById('admin-room-name');
-        adminRoomName.textContent = `Admin: ${roomName}`;
+        adminRoomName.textContent = roomName;
 
         const minRangeInput = document.getElementById('min-range');
         const maxRangeInput = document.getElementById('max-range');
@@ -144,10 +144,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update button states based on game phase
             if (gameState.phase === 'playing' || gameState.phase === 'countdown') {
                 startGameButton.disabled = true;
-                startGameButton.textContent = 'Partida en curso...';
+                startGameButton.textContent = 'Partida en curso';
             } else {
                 startGameButton.disabled = false;
-                startGameButton.textContent = 'Iniciar Partida';
+                startGameButton.textContent = 'Iniciar partida';
             }
 
             // Update settings inputs if the state is fresh

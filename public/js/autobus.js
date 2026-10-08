@@ -13,27 +13,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameInput = document.getElementById('name-input');
     const joinGameBtn = document.getElementById('join-game-btn');
 
-    let user = {};
+    let user = {
+        uuid: localStorage.getItem('userUUID') || uuidv4(),
+        name: localStorage.getItem('userName') || 'Anónimo'
+    };
+    localStorage.setItem('userUUID', user.uuid);
+
     const roomId = window.location.pathname.split('/').pop();
     let roomAdminId = null;
-    let latestGameState = null; // To store the latest game state for delayed updates
+    let latestGameState = null;
+    let lastRevealedKey = null;   // para girar solo las cartas nuevas
+    let lastHandKey = '';         // para repartir solo las cartas nuevas
 
     // --- Join Logic ---
-    joinGameBtn.addEventListener('click', () => {
-        const name = nameInput.value.trim();
-        if (!name) return alert('Por favor, introduce un nombre.');
-        user = { uuid: localStorage.getItem('userUuid') || uuidv4(), name };
-        localStorage.setItem('userUuid', user.uuid);
+    function joinGame(name) {
+        user.name = name;
         localStorage.setItem('userName', user.name);
         nameModal.style.display = 'none';
         socket.emit('joinRoom', { gameType: 'autobus', roomId, user });
-        if (latestGameState) {
-            updateUI(latestGameState);
-        }
+    }
+
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGameBtn.click(); });
+
+    joinGameBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+        if (!name) return alert('Por favor, introduce un nombre.');
+        joinGame(name);
     });
 
+    // Auto-join if name exists
     if (localStorage.getItem('userName')) {
         nameInput.value = localStorage.getItem('userName');
+        joinGame(localStorage.getItem('userName'));
+    } else {
+        nameModal.style.display = 'flex';
     }
 
     // --- Socket Handlers ---
@@ -48,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UI Rendering ---
     function updateUI(gameState) {
+        renderSteps(gameState);
         renderPlayerList(gameState);
         renderAutobus(gameState);
         renderPlayerHand(gameState);
@@ -62,10 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 3000,
                 gravity: "top",
                 position: "center",
-                style: {
-                    background: "linear-gradient(to right, #ff416c, #ff4b2b)",
-                    zIndex: 9999
-                }
+                className: /fallado|bebes/i.test(myPlayer.message) ? 'tp-toast--drink' : ''
             }).showToast();
         }
     }
@@ -97,8 +108,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const questionElement = document.createElement('h2');
+        questionElement.className = 'g-question';
         questionElement.textContent = question;
-        autobusArea.appendChild(questionElement);
+        if (currentPlayer && gameState.phase !== 'waiting' && gameState.phase !== 'finished') {
+            const who = document.createElement('p');
+            who.className = 'g-sub';
+            who.textContent = currentPlayer.uuid === user.uuid ? 'Te toca' : `Turno de ${currentPlayer.name}`;
+            autobusArea.appendChild(questionElement);
+            autobusArea.appendChild(who);
+        }
+        if (!questionElement.parentNode) autobusArea.appendChild(questionElement);
 
         const cardDisplayContainer = document.createElement('div');
         cardDisplayContainer.classList.add('card-display-container');
@@ -110,9 +129,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const revealedCardSlot = document.createElement('div');
         revealedCardSlot.classList.add('revealed-card-slot');
         if (gameState.currentCard) {
-            const cardElement = createCardElement(gameState.currentCard, true);
+            const key = `${gameState.currentCard.rank}_${gameState.currentCard.suit}_${gameState.currentPlayerIndex}_${gameState.phase}`;
+            const isNew = key !== lastRevealedKey;
+            lastRevealedKey = key;
+            const cardElement = createCardElement(gameState.currentCard, !isNew);
             revealedCardSlot.appendChild(cardElement);
+            revealedCardSlot.classList.add('has-card');
+            if (isNew) {
+                cardElement.classList.add('is-drawn');
+                requestAnimationFrame(() => requestAnimationFrame(() => cardElement.classList.add('revealed')));
+            }
         } else {
+            lastRevealedKey = null;
             const placeholderCard = document.createElement('div');
             placeholderCard.classList.add('card');
             placeholderCard.innerHTML = '<div class="card-inner"><div class="card-front"></div><div class="card-back"></div></div>';
@@ -149,16 +177,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user.uuid === roomAdminId) {
             if (phase === 'waiting') {
                 const startBtn = document.createElement('button');
-                startBtn.textContent = 'Comenzar Partida';
+                startBtn.innerHTML = '<i class="bi bi-play-fill"></i> Empezar partida';
                 startBtn.classList.add('btn-custom');
                 addClickListener(startBtn, { type: 'start-autobus', payload: { roomId, userId: user.uuid } });
                 playerActionsElement.appendChild(startBtn);
                 buttonsRendered = true;
             } else if (phase === 'finished') {
                 const playAgainBtn = document.createElement('button');
-                playAgainBtn.textContent = 'Volver a Jugar';
+                playAgainBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Jugar otra vez';
                 playAgainBtn.classList.add('btn-custom');
-                addClickListener(playAgainBtn, { type: 'autobus:reset-game', payload: { roomId, userId: user.uuid } });
+                addClickListener(playAgainBtn, { type: 'resetGame', payload: { roomId, userId: user.uuid, gameType: 'autobus' } });
                 playerActionsElement.appendChild(playAgainBtn);
                 buttonsRendered = true;
             }
@@ -169,42 +197,42 @@ document.addEventListener('DOMContentLoaded', () => {
             switch (phase) {
                 case 'red-or-black':
                     const redBtn = document.createElement('button');
-                    redBtn.textContent = 'Rojo';
-                    redBtn.classList.add('btn-custom');
+                    redBtn.innerHTML = '<i class="bi bi-suit-heart-fill"></i> Rojo';
+                    redBtn.classList.add('btn-custom', 'bus-choice', 'is-red');
                     addClickListener(redBtn, { type: 'autobus:red-or-black', payload: { roomId, userId: user.uuid, guess: 'red' } });
                     playerActionsElement.appendChild(redBtn);
 
                     const blackBtn = document.createElement('button');
-                    blackBtn.textContent = 'Negro';
-                    blackBtn.classList.add('btn-custom');
+                    blackBtn.innerHTML = '<i class="bi bi-suit-spade-fill"></i> Negro';
+                    blackBtn.classList.add('btn-custom', 'bus-choice', 'is-black');
                     addClickListener(blackBtn, { type: 'autobus:red-or-black', payload: { roomId, userId: user.uuid, guess: 'black' } });
                     playerActionsElement.appendChild(blackBtn);
                     buttonsRendered = true;
                     break;
                 case 'higher-or-lower':
                     const higherBtn = document.createElement('button');
-                    higherBtn.textContent = 'Mayor';
-                    higherBtn.classList.add('btn-custom');
+                    higherBtn.innerHTML = '<i class="bi bi-arrow-up"></i> Mayor';
+                    higherBtn.classList.add('btn-custom', 'bus-choice');
                     addClickListener(higherBtn, { type: 'autobus:higher-or-lower', payload: { roomId, userId: user.uuid, guess: 'higher' } });
                     playerActionsElement.appendChild(higherBtn);
 
                     const lowerBtn = document.createElement('button');
-                    lowerBtn.textContent = 'Menor';
-                    lowerBtn.classList.add('btn-custom');
+                    lowerBtn.innerHTML = '<i class="bi bi-arrow-down"></i> Menor';
+                    lowerBtn.classList.add('btn-custom', 'bus-choice');
                     addClickListener(lowerBtn, { type: 'autobus:higher-or-lower', payload: { roomId, userId: user.uuid, guess: 'lower' } });
                     playerActionsElement.appendChild(lowerBtn);
                     buttonsRendered = true;
                     break;
                 case 'inside-or-outside':
                     const insideBtn = document.createElement('button');
-                    insideBtn.textContent = 'Dentro';
-                    insideBtn.classList.add('btn-custom');
+                    insideBtn.innerHTML = '<i class="bi bi-arrows-angle-contract"></i> Dentro';
+                    insideBtn.classList.add('btn-custom', 'bus-choice');
                     addClickListener(insideBtn, { type: 'autobus:inside-or-outside', payload: { roomId, userId: user.uuid, guess: 'inside' } });
                     playerActionsElement.appendChild(insideBtn);
 
                     const outsideBtn = document.createElement('button');
-                    outsideBtn.textContent = 'Fuera';
-                    outsideBtn.classList.add('btn-custom');
+                    outsideBtn.innerHTML = '<i class="bi bi-arrows-angle-expand"></i> Fuera';
+                    outsideBtn.classList.add('btn-custom', 'bus-choice');
                     addClickListener(outsideBtn, { type: 'autobus:inside-or-outside', payload: { roomId, userId: user.uuid, guess: 'outside' } });
                     playerActionsElement.appendChild(outsideBtn);
                     buttonsRendered = true;
@@ -214,16 +242,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const suitNames = { 'hearts': 'Corazones', 'diamonds': 'Diamantes', 'clubs': 'Tréboles', 'spades': 'Picas' };
                     
                     const buttonGrid = document.createElement('div');
-                    buttonGrid.style.display = 'grid';
-                    buttonGrid.style.gridTemplateColumns = '1fr 1fr';
-                    buttonGrid.style.gap = '10px';
-                    buttonGrid.style.width = '100%';
-                    buttonGrid.style.maxWidth = '250px';
+                    buttonGrid.className = 'suit-grid';
+                    const suitIcons = { 'hearts': 'bi-suit-heart-fill', 'diamonds': 'bi-suit-diamond-fill', 'clubs': 'bi-suit-club-fill', 'spades': 'bi-suit-spade-fill' };
 
                     suits.forEach(suit => {
                         const suitBtn = document.createElement('button');
-                        suitBtn.textContent = suitNames[suit];
-                        suitBtn.classList.add('btn-custom', 'btn-small');
+                        suitBtn.innerHTML = `<i class="bi ${suitIcons[suit]}"></i> ${suitNames[suit]}`;
+                        suitBtn.classList.add('btn-custom', 'btn-small', 'bus-choice', (suit === 'hearts' || suit === 'diamonds') ? 'is-red' : 'is-black');
                         addClickListener(suitBtn, { type: 'autobus:suit-guess', payload: { roomId, userId: user.uuid, guess: suit } });
                         buttonGrid.appendChild(suitBtn);
                     });
@@ -248,27 +273,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const playerToShow = isMyTurn ? me : currentPlayer;
 
-        if (!playerToShow || !playerToShow.currentCards) return;
+        if (!playerToShow || !playerToShow.currentCards) { lastHandKey = ''; return; }
 
         const handTitle = document.querySelector('.player-footer h2');
         if (handTitle) {
-            handTitle.textContent = isMyTurn ? 'Tus Cartas' : `Cartas de ${currentPlayer.name}`;
+            handTitle.textContent = isMyTurn ? 'Tus cartas' : `Cartas de ${currentPlayer.name}`;
         }
 
-        playerToShow.currentCards.forEach(cardData => {
+        const ownerKey = playerToShow.uuid + ':';
+        const prevCount = lastHandKey.startsWith(ownerKey) ? Number(lastHandKey.slice(ownerKey.length)) : -1;
+        playerToShow.currentCards.forEach((cardData, i) => {
             const cardElement = createCardElement(cardData, true);
+            if (prevCount >= 0 && i >= prevCount) cardElement.classList.add('is-dealt');
             playerHandElement.appendChild(cardElement);
         });
+        if (playerToShow.currentCards.length === 0) {
+            for (let i = 0; i < 4; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'hand-slot';
+                playerHandElement.appendChild(slot);
+            }
+        }
+        lastHandKey = ownerKey + playerToShow.currentCards.length;
     }
 
     function renderDrinksCounter(gameState) {
         const myPlayer = gameState.players.find(p => p.uuid === user.uuid);
         // Show drinks message only if the player has a failure message
         if (myPlayer && myPlayer.message && myPlayer.message.includes('fallado')) {
-            myDrinksCount.textContent = `¡Bebes ${myPlayer.drinksToTake} trago(s)!`;
+            myDrinksCount.innerHTML = `<span class="g-banner"><i class="bi bi-cup-straw"></i> Bebes ${myPlayer.drinksToTake} ${myPlayer.drinksToTake == 1 ? 'trago' : 'tragos'}</span>`;
         } else {
             myDrinksCount.textContent = '';
         }
+    }
+
+    function renderSteps(gameState) {
+        const steps = document.getElementById('bus-steps');
+        if (!steps) return;
+        const order = ['red-or-black', 'higher-or-lower', 'inside-or-outside', 'suit-guess'];
+        const idx = order.indexOf(gameState.phase);
+        steps.classList.toggle('is-idle', idx === -1);
+        steps.querySelectorAll('li').forEach((li, i) => {
+            li.classList.toggle('is-done', idx > -1 && i < idx);
+            li.classList.toggle('is-current', i === idx);
+        });
     }
 
     // --- Helper Functions ---
@@ -278,16 +326,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentPlayerId = gameState.players[gameState.currentPlayerIndex].uuid;
 
         gameState.players.forEach(p => {
-            const li = document.createElement('li');
-            li.textContent = `${p.name} (${p.totalDrinks || 0} tragos)`;
-            if (p.uuid === currentPlayerId) {
-                li.classList.add('current-player');
-            }
-            if (p.hasWon) {
-                li.classList.add('player-won');
-            }
+            const drinks = p.totalDrinks || 0;
+            const li = tpPlayerChip(p.name, { offline: p.online === false,
+                turn: p.uuid === currentPlayerId && gameState.phase !== 'waiting' && gameState.phase !== 'finished',
+                won: p.hasWon,
+                me: p.uuid === user.uuid,
+                meta: p.hasWon ? 'bajado' : String(drinks),
+                metaIcon: p.hasWon ? 'bi-check2' : 'bi-cup-straw'
+            });
+            if (p.uuid === currentPlayerId) li.classList.add('current-player');
+            if (p.hasWon) li.classList.add('player-won');
             playerList.appendChild(li);
         });
+        tpScrollTurnIntoView(playerList);
     }
 
     function createCardElement(cardData, isFaceUp = false) {

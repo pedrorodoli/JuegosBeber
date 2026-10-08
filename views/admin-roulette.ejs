@@ -1,120 +1,91 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurar Partida de Ruleta - JuegosBeber.es</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
-     crossorigin="anonymous"></script>
-    <style>
-        body { background-color: var(--bg-dark); color: var(--text-light); }
-        .container-main { max-width: 800px; margin: 0 auto; }
-        .card { background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
-        label { color: #ffc107; font-weight: bold; }
-        .form-control { background-color: rgba(0, 0, 0, 0.2); border: 1px solid #555; color: #e0e0e0; }
-        .form-control:focus { background-color: rgba(0, 0, 0, 0.3); color: #fff; border-color: #ffc107; box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.25); }
-    </style>
+    <%- include('partials/head', { ads: true }) %>
+    <title><%= title %></title>
+    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Crea tu propia sala de juegos beber online.' %>">
+    <link rel="stylesheet" href="/css/admin.css">
 </head>
-<body class="bg-dark text-light">
-    <%- include('partials/header') %>
-    <div class="admin-wrapper">
-        <div class="container container-main mt-5 mb-5">
-        <h1 class="text-center mb-4" style="color: #ffc107; font-family: 'Montserrat', sans-serif;">Configurar Partida de Ruleta</h1>
-        
-        <div class="card shadow">
-            <div class="card-body p-4">
-                <form id="create-room-form">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="name" class="form-label">Nombre de la Sala</label>
-                            <input type="text" class="form-control" id="name" name="name" placeholder="La Ruleta de la Suerte" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="password" class="form-label">Contraseña (opcional)</label>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Secreto">
-                        </div>
-                    </div>
+<body class="admin-page">
+    <%- include('partials/topbar', { back: '/rooms/roulette', backLabel: 'Volver a las salas' }) %>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="initialSips" class="form-label">Saldo Inicial (puntos)</label>
-                            <input type="number" class="form-control" id="initialSips" name="settings[initialSips]" value="100" min="1">
-                            <small class="text-muted">Puntos con los que empieza cada jugador.</small>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="bettingTime" class="form-label">Tiempo de Apuesta (segundos)</label>
-                            <input type="number" class="form-control" id="bettingTime" name="settings[bettingTime]" value="30" min="10">
-                        </div>
-                    </div>
+    <main class="admin-main">
+        <header class="admin-head">
+            <h1 class="tp-rise">Nueva sala</h1>
+            <p class="tp-rise" style="--i:1"><strong>Ruleta.</strong> <%= typeof description !== 'undefined' ? description : '' %></p>
+        </header>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="drinkPrice" class="form-label">Precio del Trago (puntos)</label>
-                            <input type="number" class="form-control" id="drinkPrice" name="settings[drinkPrice]" value="20" min="1">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="zeroSipsPenalty" class="form-label">Penalización (tragos)</label>
-                            <input type="number" class="form-control" id="zeroSipsPenalty" name="settings[zeroSipsPenalty]" value="5" min="0">
-                            <small class="text-muted">Tragos que bebe quien se queda sin puntos.</small>
-                        </div>
-                    </div>
-
-                    <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-warning btn-lg fw-bold">Crear Sala de Ruleta</button>
-                    </div>
-                </form>
+        <form id="create-room-form" class="admin-form tp-panel tp-rise" style="--i:2" novalidate>
+            <div class="tp-field">
+                <label class="tp-label" for="name">Nombre de la sala</label>
+                <input class="tp-input" type="text" id="name" name="name" placeholder="La ruleta de la suerte" maxlength="40" required autocomplete="off">
             </div>
-        </div>
+            <div class="tp-field">
+                <label class="tp-label" for="password">Contraseña <span class="tp-optional">opcional</span></label>
+                <input class="tp-input" type="password" id="password" name="password" placeholder="Déjala vacía para una sala pública" autocomplete="new-password">
+            </div>
+            <div class="admin-grid">
+            <div class="tp-field">
+                <label class="tp-label" for="initialSips">Saldo inicial (puntos)</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="initialSips" name="initialSips" value="100" min="1">
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+                <span class="tp-hint">Puntos con los que empieza cada jugador.</span>
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="bettingTime">Tiempo para apostar (s)</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="bettingTime" name="bettingTime" value="30" min="10">
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="drinkPrice">Precio del trago (puntos)</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="drinkPrice" name="drinkPrice" value="20" min="1">
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="zeroSipsPenalty">Penalización (tragos)</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="zeroSipsPenalty" name="zeroSipsPenalty" value="5" min="0">
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+                <span class="tp-hint">Tragos que bebe quien se queda sin puntos.</span>
+            </div>
+            </div>
+            <p class="tp-form-error" role="alert" hidden></p>
+            <button type="submit" class="tp-btn tp-btn--block admin-submit">Crear sala <i class="bi bi-arrow-right"></i></button>
+        </form>
 
-        <div class="mt-5">
+        <section class="admin-rules tp-rise" style="--i:3">
             <%- include('partials/game_rules', { gameType: 'roulette' }) %>
-        </div>
-    </div>
-</div>
+        </section>
+    </main>
 
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
+    <%- include('partials/footer') %>
+    <script src="/js/create-room.js"></script>
     <script>
-        document.getElementById('create-room-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const data = {
-                name: form.name.value,
-                password: form.password.value,
-                settings: {
-                    initialSips: parseInt(form['settings[initialSips]'].value, 10),
-                    bettingTime: parseInt(form['settings[bettingTime]'].value, 10),
-                    drinkPrice: parseInt(form['settings[drinkPrice]'].value, 10),
-                    zeroSipsPenalty: parseInt(form['settings[zeroSipsPenalty]'].value, 10)
-                }
-            };
-
-            let creatorId = localStorage.getItem('user_uuid');
-            if (!creatorId) {
-                creatorId = `admin_${Math.random().toString(36).substr(2, 9)}`;
-                localStorage.setItem('user_uuid', creatorId);
-            }
-            data.creatorId = creatorId;
-
-            const response = await fetch('/api/rooms/roulette', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                window.location.href = `/game/roulette/${result.roomId}`;
-            } else {
-                alert('Error al crear la sala.');
+        tpCreateRoom({
+            gameType: 'roulette',
+            form: 'create-room-form',
+            build: function (form) {
+                const nameInput = document.getElementById('name');
+                if (!nameInput.value.trim()) { nameInput.focus(); throw new Error('Ponle un nombre a la sala.'); }
+                return {
+                    name: nameInput.value,
+                    password: document.getElementById('password').value,
+                    settings: { initialSips: parseInt(document.getElementById('initialSips').value, 10), bettingTime: parseInt(document.getElementById('bettingTime').value, 10), drinkPrice: parseInt(document.getElementById('drinkPrice').value, 10), zeroSipsPenalty: parseInt(document.getElementById('zeroSipsPenalty').value, 10) }
+                };
             }
         });
     </script>
+    <%- include('partials/analytics') %>
 </body>
 </html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/game.css">
+    <link rel="stylesheet" href="/css/bolita.css">
+</head>
+<body class="game bolita">
+    <%- include('partials/game_bar', { gameType: 'bolita', title: title, roomId: roomId }) %>
+
+    <div id="game-container">
+        <!-- Espera -->
+        <div id="waiting-room" class="bl-waiting">
+            <div class="bl-hero" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+                <i class="bl-hero-ball"></i>
+            </div>
+            <h1 class="game-title">La Bolita</h1>
+            <div class="room-info">
+                <h3>Sala <span id="display-room-name">...</span></h3>
+                <p>Esperando a que el anfitrión empiece la partida.</p>
+            </div>
+
+            <div class="players-list-container">
+                <h4>En la sala <span id="player-count" class="num">0</span></h4>
+                <ul id="players-list">
+                    <!-- Jugadores -->
+                </ul>
+            </div>
+
+            <div id="admin-controls" class="d-none">
+                <button id="start-game-btn" class="btn-custom"><i class="bi bi-play-fill"></i> Empezar partida</button>
+            </div>
+        </div>
+
+        <!-- Partida -->
+        <div id="game-board" class="d-none bl-board">
+            <div class="bl-side">
+                <div class="game-header">
+                    <h2 id="turn-indicator">...</h2>
+                    <div id="last-action-container" class="d-none">
+                        <span id="last-action-text"></span>
+                    </div>
+                </div>
+                <div class="players-sidebar">
+                    <ul id="game-players-list">
+                        <!-- Jugadores con turno -->
+                    </ul>
+                </div>
+                <div id="admin-post-game" class="d-none">
+                    <button id="reset-game-btn" class="tp-btn tp-btn--ghost tp-btn--sm"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar juego</button>
+                </div>
+            </div>
+
+            <div class="bl-canvas-col">
+                <div id="canvas-container">
+                    <canvas id="bolita-canvas" width="600" height="800"></canvas>
+                    <div id="tap-overlay" class="d-none" role="button" aria-label="Soltar la bola">
+                        <div class="tap-text"><i class="bi bi-hand-index-thumb"></i> Toca para soltar la bola</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nombre -->
+    <div id="name-modal" class="modal-overlay" style="display:none">
+        <div class="modal-content">
+            <h2>¿Cómo te llamas?</h2>
+            <p>Así te verán los demás en la partida.</p>
+            <input type="text" id="name-input" placeholder="Tu nombre" maxlength="24" autocomplete="nickname" enterkeyhint="go">
+            <button id="join-game-btn" class="btn-custom">Entrar a jugar</button>
+        </div>
+    </div>
+
+    <!-- Premio -->
+    <div class="modal-overlay bl-reward" id="rewardModal" style="display:none" aria-live="assertive">
+        <div class="modal-content">
+            <h4 id="rewardModalLabel">Bola dentro</h4>
+            <h5 id="reward-player-name"></h5>
+            <div class="prize-badge">
+                <span id="reward-text"></span>
+            </div>
+            <p id="reward-description"></p>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/toastify.min.js"></script>
+    <script src="/js/bolita-physics.js"></script>
+    <script src="/js/bolita.js"></script>
+    <%- include('partials/analytics') %>
+</body>
+</html>

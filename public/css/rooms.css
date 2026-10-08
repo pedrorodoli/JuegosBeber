@@ -1,0 +1,37 @@
+/* Lista de salas de un juego */
+.rooms-page { display: flex; flex-direction: column; }
+.rooms-main { width: 100%; max-width: 760px; margin: 0 auto; padding: 1.75rem 1.25rem 2.5rem; display: grid; gap: 1.75rem; }
+
+.rooms-head h1 { font-size: clamp(2.3rem, 9vw, 3.4rem); letter-spacing: -0.045em; margin-bottom: 0.6rem; }
+.rooms-head p { color: var(--muted); max-width: 52ch; margin: 0 0 1.25rem; }
+.rooms-create { min-width: 200px; }
+
+.rooms-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.rooms-list-head h2 { font-size: 1.3rem; margin: 0; }
+.live { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; color: var(--muted); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--win); animation: live 2s ease-out infinite; }
+@keyframes live { 0% { box-shadow: 0 0 0 0 rgba(143, 227, 176, 0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgba(143, 227, 176, 0); } }
+
+.room-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.room-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.85rem;
+  padding: 0.75rem 0.75rem 0.75rem 0.85rem;
+  background: linear-gradient(180deg, rgba(23, 69, 54, 0.7), rgba(17, 55, 44, 0.7));
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  animation: tp-rise 420ms var(--ease-out) both;
+}
+.room-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--felt-900); color: var(--chalk-2); }
+.room-info { min-width: 0; display: grid; gap: 0.1rem; }
+.room-name { font-weight: 650; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room-meta { font-size: 0.85rem; color: var(--muted); }
+
+.rooms-empty {
+  display: grid; justify-items: center; text-align: center; gap: 0.35rem;
+  padding: 2rem 1.25rem; border: 1.5px dashed var(--line-strong); border-radius: var(--r-md); color: var(--muted);
+}
+.rooms-empty strong { color: var(--chalk); font-size: 1.05rem; }
+.rooms-empty-art {
+  display: grid; place-items: center; width: 56px; height: 76px; margin-bottom: 0.5rem; border-radius: 9px;
+  background: var(--chalk); color: var(--felt-900); font-size: 1.6rem; transform: rotate(-6deg);
+  box-shadow: 0 14px 24px -14px rgba(2,14,10,0.95);
+}

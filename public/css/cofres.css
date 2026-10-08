@@ -1,0 +1,124 @@
+/* Cofres del Tesoro */
+.d-none { display: none !important; }
+
+#game-container { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 1100px; margin: 0 auto; padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); min-height: 0; }
+
+/* Espera */
+.cf-waiting { display: grid; justify-items: center; text-align: center; gap: 0.5rem; margin: auto 0; padding: 1rem 0 2rem; }
+.cf-hero { display: flex; align-items: flex-end; gap: 14px; height: 96px; margin-bottom: 0.5rem; }
+.cf-chest-art { position: relative; width: 64px; height: 52px; animation: tp-deal 520ms var(--ease-out) both; }
+.cf-chest-art:nth-child(2) { animation-delay: 90ms; transform-origin: bottom; }
+.cf-chest-art:nth-child(3) { animation-delay: 180ms; }
+.cf-chest-art.large { width: 80px; height: 64px; }
+.cf-chest-art.golden { width: 70px; height: 58px; margin-bottom: 18px; }
+.game-title { font-size: clamp(2.1rem, 9vw, 3rem); letter-spacing: -0.045em; margin: 0; }
+.room-info h3 { font: 600 0.85rem/1 var(--font-body); color: var(--muted); margin: 0.25rem 0 0.4rem; letter-spacing: 0; }
+.room-info p { color: var(--chalk-2); margin: 0; }
+.players-list-container { width: 100%; max-width: 440px; margin-top: 1rem; }
+.players-list-container h4 { font: 600 0.82rem/1 var(--font-body); color: var(--muted); margin: 0 0 0.75rem; letter-spacing: 0.02em; }
+.players-list-container h4 .num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-left: 0.3rem; border-radius: 11px; background: var(--felt-600); color: var(--chalk); font-size: 0.78rem; }
+#players-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+#players-list .g-chip.is-offline { opacity: 0.5; }
+#admin-controls { width: 100%; max-width: 440px; margin-top: 1.25rem; }
+#admin-controls .btn-custom { width: 100%; }
+
+/* Partida */
+#game-board { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0.75rem; }
+.game-header { text-align: center; display: grid; justify-items: center; gap: 0.5rem; }
+#turn-indicator { font: 750 clamp(1.3rem, 6vw, 1.8rem)/1.1 var(--font-display); letter-spacing: -0.03em; margin: 0.25rem 0 0; }
+#turn-indicator.is-my-turn { color: var(--chip); }
+#turn-indicator.is-finished { color: var(--chalk-2); }
+#last-action-container { max-width: 100%; }
+#last-action-text { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.9rem; border-radius: var(--r-pill); background: rgba(6,24,18,0.6); border: 1px solid var(--line); font-size: 0.88rem; color: var(--chalk-2); animation: tp-rise 320ms var(--ease-out) both; }
+#last-action-text i { color: var(--chip); }
+
+/* Tablero: tapete donde están escondidos los cofres */
+.chests-grid {
+  position: relative; flex: 1 1 auto; width: 100%; min-height: 340px;
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(60% 50% at 50% 45%, rgba(45,110,88,0.45), transparent 70%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 22px, rgba(238,241,234,0.025) 22px 23px),
+    linear-gradient(180deg, var(--felt-700), var(--felt-900));
+  border: 1px solid var(--line);
+  box-shadow: inset 0 2px 40px rgba(2, 14, 10, 0.7);
+  overflow: hidden;
+  container-type: size;
+}
+/* Recoloca los cofres para que nunca se salgan del tablero (x/y vienen en % del servidor) */
+@supports (width: 1cqw) {
+  .chests-grid .chest-container { --w: 64px; --h: 56px; --span: 86; }
+  .chests-grid .chest-container.large { --w: 86px; --h: 74px; --span: 82; }
+  .chests-grid .chest-container {
+    width: var(--w); height: var(--h);
+    left: calc(8px + (100cqw - var(--w) - 16px) * (var(--x) - 2) / var(--span)) !important;
+    top: calc(8px + (100cqh - var(--h) - 16px) * (var(--y) - 2) / var(--span)) !important;
+  }
+}
+@media (max-width: 420px) {
+  .chests-grid .chest-container { --w: 50px; --h: 44px; }
+  .chests-grid .chest-container.large { --w: 68px; --h: 58px; }
+}
+
+/* Cofre (estructura de cofres.js) */
+.chest-container { position: absolute; perspective: 600px; cursor: default; margin: 0; animation: cf-drop 460ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 25ms); }
+@keyframes cf-drop { from { opacity: 0; transform: translateY(-12px) scale(0.9); } to { opacity: 1; transform: none; } }
+.chest-container.normal { width: clamp(46px, 11vmin, 76px); height: clamp(40px, 9.5vmin, 66px); }
+.chest-container.golden { width: clamp(46px, 11vmin, 76px); height: clamp(40px, 9.5vmin, 66px); }
+.chest-container.large { width: clamp(62px, 15vmin, 100px); height: clamp(54px, 13vmin, 88px); }
+.chest-container.clickable { cursor: pointer; }
+.chest-container.clickable .chest-inner { animation: cf-wiggle 2.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 80ms); }
+@keyframes cf-wiggle { 0%, 86%, 100% { transform: none; } 90% { transform: rotate(-4deg); } 94% { transform: rotate(4deg); } }
+.chest-container.clickable:active .chest-inner { transform: scale(0.94); animation: none; }
+@media (hover: hover) and (pointer: fine) { .chest-container.clickable:hover .chest-inner { transform: translateY(-4px) scale(1.06); animation: none; } }
+
+.chest-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 600ms var(--ease-out); }
+.chest-container.opened .chest-inner { transform: rotateY(180deg); }
+.chest-container.just-opened .chest-inner { transition-duration: 760ms; }
+.chest-front, .chest-open { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.chest-open { transform: rotateY(180deg); display: grid; place-items: center; border-radius: 12px; background: var(--chalk); color: var(--felt-900); box-shadow: 0 10px 18px -10px rgba(2,14,10,0.95); }
+.reward-icon { font-size: clamp(1.1rem, 4.5vmin, 1.8rem); }
+.chest-open[data-reward="BEBE"], .chest-open[data-reward="ACABATE"] { background: var(--chip); color: var(--chip-ink); }
+
+/* Cofre dibujado con CSS: tapa + cuerpo + cerradura */
+.chest-front, .cf-chest-art { --wood: #8a5a34; --wood-d: #5e3a1f; --band: #c9d6ce; }
+.chest-container.golden .chest-front, .cf-chest-art.golden { --wood: #f3c969; --wood-d: #b98a2a; --band: #fff5d6; }
+.chest-container.large .chest-front, .cf-chest-art.large { --wood: #7a4a2a; --wood-d: #4c2c15; --band: #eef1ea; }
+.chest-lid, .chest-body, .chest-lock { position: absolute; display: block; }
+.chest-lid, .cf-chest-art::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 42%;
+  border-radius: 45% 45% 6px 6px / 60% 60% 6px 6px;
+  background: linear-gradient(180deg, var(--wood), var(--wood-d));
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.2);
+}
+.chest-body, .cf-chest-art::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 60%;
+  border-radius: 4px 4px 9px 9px;
+  background:
+    linear-gradient(90deg, transparent 12%, var(--band) 12% 18%, transparent 18% 82%, var(--band) 82% 88%, transparent 88%),
+    linear-gradient(180deg, var(--wood), var(--wood-d));
+  box-shadow: 0 10px 16px -8px rgba(2,14,10,0.95), inset 0 2px 0 rgba(0,0,0,0.2);
+}
+.chest-lock { left: 50%; top: 32%; width: 22%; height: 26%; margin-left: -11%; border-radius: 4px; background: var(--band); box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25); z-index: 1; }
+.chest-container.golden .chest-front::after { content: ""; position: absolute; inset: -6px; border-radius: 14px; background: radial-gradient(closest-side, rgba(243,201,105,0.35), transparent); z-index: -1; }
+
+/* Pie: orden de turnos */
+.game-footer { display: grid; gap: 0.75rem; justify-items: center; text-align: center; }
+#turn-order-container h5 { font: 600 0.78rem/1 var(--font-body); color: var(--muted); margin: 0 0 0.5rem; letter-spacing: 0.02em; }
+#turn-order-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+#turn-order-list .g-chip { font-size: 0.8rem; }
+#admin-post-game .btn-custom { min-width: 240px; }
+
+/* Hoja del premio */
+.cf-reward .modal-content { text-align: center; }
+#opened-chest-img { display: inline-grid; place-items: center; width: 84px; height: 84px; margin: 0.25rem auto 0.9rem; border-radius: 24px; background: var(--chalk); color: var(--felt-900); font-size: 2.4rem; animation: cf-reward-pop 620ms var(--ease-out) both; }
+#opened-chest-img.golden { background: var(--warn); }
+#opened-chest-img.large { width: 96px; height: 96px; }
+@keyframes cf-reward-pop { 0% { opacity: 0; transform: scale(0.4) rotate(-14deg); } 60% { opacity: 1; transform: scale(1.08) rotate(4deg); } 100% { transform: none; } }
+#reward-text { font-size: clamp(1.7rem, 8vw, 2.3rem); letter-spacing: -0.04em; }
+#reward-description { color: var(--chalk-2); }
+
+/* Al abrir, ocultar del todo la cara cerrada (la cerradura se colaba como un punto blanco en algunos navegadores) */
+.chest-lid, .chest-body, .chest-lock { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.chest-container.opened .chest-front { visibility: hidden; transition: visibility 0s linear 280ms; }
+.chest-container.opened .chest-front * { visibility: hidden; }

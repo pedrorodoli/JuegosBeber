@@ -1,0 +1,17 @@
+<%# Barra superior. Parámetros: back (url opcional), backLabel, right (html opcional) %>
+<header class="tp-topbar">
+  <div class="tp-topbar-inner">
+    <% if (typeof back !== 'undefined' && back) { %>
+      <a class="tp-back" href="<%= back %>" aria-label="<%= typeof backLabel !== 'undefined' ? backLabel : 'Volver' %>"><i class="bi bi-arrow-left"></i></a>
+    <% } %>
+    <a class="tp-brand" href="/" aria-label="JuegosBeber, inicio">
+      <svg class="tp-brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="5" y="3.5" width="17" height="24" rx="3.5" transform="rotate(-10 13.5 15.5)" fill="#eef1ea"/>
+        <rect x="10" y="5" width="17" height="24" rx="3.5" transform="rotate(8 18.5 17)" fill="#174536" stroke="#eef1ea" stroke-width="1.5"/>
+        <circle cx="19" cy="17" r="4.2" fill="#ff5a3c"/>
+      </svg>
+      <span>JuegosBeber</span>
+    </a>
+    <% if (typeof right !== 'undefined' && right) { %><div style="margin-left:auto"><%- right %></div><% } %>
+  </div>
+</header>

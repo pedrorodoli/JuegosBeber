@@ -1,54 +1,53 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego de El Autobús</title>
+    <%- include('partials/head') %>
+    <title><%= title %></title>
     <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/game.css">
     <link rel="stylesheet" href="/css/autobus.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-dark text-light">
-    <%- include('partials/header') %>
+<body class="game autobus">
+    <%- include('partials/game_bar', { gameType: 'autobus', title: title, roomId: roomId }) %>
 
-    <header class="game-header">
-        <div class="game-card" id="player-list-card">
-            <h2>Jugadores</h2>
-            <ul id="player-list"></ul>
-        </div>
-    </header>
+    <section class="g-players" id="player-list-card" aria-label="Jugadores">
+        <ul id="player-list"></ul>
+    </section>
 
-    <main class="game-main-area">
+    <main class="g-table game-main-area">
+        <ol class="bus-steps" id="bus-steps" aria-label="Fases">
+            <li data-phase="red-or-black">Color</li>
+            <li data-phase="higher-or-lower">Mayor o menor</li>
+            <li data-phase="inside-or-outside">Dentro o fuera</li>
+            <li data-phase="suit-guess">Palo</li>
+        </ol>
         <div id="autobus-area">
             <!-- Las cartas del autobús se generarán aquí -->
         </div>
     </main>
 
-    <footer class="player-footer">
-        <h2>Tus Cartas</h2>
+    <footer class="g-dock player-footer">
+        <h2 class="g-dock-title">Tus cartas</h2>
         <div id="player-hand"></div>
-        <div id="player-actions">
-            <!-- Buttons will be rendered here by JS -->
+        <div id="player-actions" class="g-actions">
+            <!-- Botones generados por JS -->
         </div>
-        <div id="my-drinks-count"></div>
+        <div id="my-drinks-count" aria-live="polite"></div>
     </footer>
 
-    <!-- Modals -->
-    <div id="name-modal" class="modal-overlay">
+    <!-- Nombre -->
+    <div id="name-modal" class="modal-overlay" style="display:none">
         <div class="modal-content">
-            <h2>Elige tu nombre</h2>
-            <input type="text" id="name-input" placeholder="Tu nombre...">
-            <button id="join-game-btn" class="btn-custom">Unirse al Juego</button>
+            <h2>¿Cómo te llamas?</h2>
+            <p>Así te verán los demás en la partida.</p>
+            <input type="text" id="name-input" placeholder="Tu nombre" maxlength="24" autocomplete="nickname" enterkeyhint="go">
+            <button id="join-game-btn" class="btn-custom">Entrar a jugar</button>
         </div>
     </div>
-
-    <%- include('partials/game_rules', { gameType: 'autobus' }) %>
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/toastify.min.js"></script>
     <script src="/js/autobus.js"></script>
+    <%- include('partials/analytics') %>
 </body>
 </html>

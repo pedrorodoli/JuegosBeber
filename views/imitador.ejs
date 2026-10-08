@@ -1,94 +1,49 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego del Imitador</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="/css/toastify.min.css">
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            margin: 0;
-        }
-        header { width: 100%; }
-        .imitador-wrapper {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            padding: 20px;
-        }
-        .imitador-container {
-            text-align: center;
-            padding: 2rem;
-            max-width: 600px;
-            width: 100%;
-        }
-        .target-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            padding: 3rem;
-            margin-top: 2rem;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .target-name {
-            font-size: 3rem;
-            font-weight: bold;
-            color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        .instruction {
-            color: rgba(255,255,255,0.8);
-            margin-top: 1rem;
-            font-size: 1.2rem;
-        }
-        @keyframes popIn {
-            0% { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.js"></script>
-    <script src="/js/toastify.min.js"></script>
-    <!-- Google Ads -->
+    <%- include('partials/head') %>
+    <title><%= typeof title !== 'undefined' ? title : 'Juego del Imitador' %></title>
     <meta name="google-adsense-account" content="ca-pub-8003242291729928">
-    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/game.css">
+    <link rel="stylesheet" href="/css/imitador.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/toastify.min.js"></script>
 </head>
-<body class="bg-dark text-light">
-    <%- include('partials/header') %>
-    <div class="imitador-wrapper">
+<body class="game imitador">
+    <%- include('partials/game_bar', { gameType: 'imitador', title: (typeof title !== 'undefined' ? title : 'El Imitador'), roomId: roomId }) %>
+
+    <div class="main-wrapper">
         <div class="container">
-            <div id="game-area" class="imitador-container">
-            <!-- Content will be injected by JS -->
-            <div class="spinner-border text-light" role="status">
-                <span class="visually-hidden">Cargando...</span>
+            <div id="game-area" class="imitador-container" aria-live="polite">
+                <!-- Contenido generado por JS -->
+                <div class="im-loading"><span class="tp-spinner"></span> Entrando en la sala</div>
+            </div>
+
+            <!-- Controles del anfitrión -->
+            <div id="admin-controls" class="im-admin" style="display: none;">
+                <button id="btn-start" class="btn-custom">
+                    <i class="bi bi-shuffle"></i> Repartir
+                </button>
             </div>
         </div>
-
-        <!-- Admin Controls -->
-        <div id="admin-controls" class="text-center mt-4" style="display: none;">
-            <button id="btn-start" class="btn btn-success btn-lg rounded-pill px-5 shadow-lg">
-                <i class="bi bi-play-circle-fill"></i> Repartir
-            </button>
-        </div>
-
-        <%- include('partials/game_rules', { gameType: 'imitador' }) %>
     </div>
-</div>
 
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Nombre -->
+    <div id="name-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>¿Cómo te llamas?</h2>
+            <p>Así te verán los demás en la partida.</p>
+            <input type="text" id="name-input" placeholder="Tu nombre" maxlength="24" autocomplete="nickname" enterkeyhint="go">
+            <button id="join-game-btn" class="btn-custom">Entrar a jugar</button>
+        </div>
+    </div>
 
     <script>
         const roomId = '<%= roomId %>';
         const gameType = '<%= gameType %>';
     </script>
     <script src="/js/imitador.js"></script>
+    <%- include('partials/analytics') %>
 </body>
 </html>

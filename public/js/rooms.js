@@ -1,34 +1,44 @@
 // public/js/rooms.js
 
-const socket = io(); // Assuming socket.io is already loaded globally
+const socket = io();
 
-function handleJoinRoom(roomId, hasPassword) {
-    let password = null;
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function handleJoinRoom(roomId, hasPassword) {
+    // (clon) La contraseña se comprueba ANTES de entrar, y si está mal se dice en el momento
     if (hasPassword) {
-        password = prompt("Esta sala requiere una contraseña:");
-        if (password === null) { // User cancelled the prompt
-            return;
+        const uuid = localStorage.getItem('userUUID') || generateUserUuid();
+        localStorage.setItem('userUUID', uuid);
+        let error = '';
+        for (;;) {
+            const password = await tpAsk({
+                title: 'Sala con contraseña',
+                text: 'Pídesela a quien creó la sala.',
+                type: 'password',
+                placeholder: 'Contraseña',
+                submitLabel: 'Entrar',
+                error
+            });
+            if (password === null) return; // Cancelado
+            let res;
+            try {
+                res = await (await fetch(`/api/rooms/${encodeURIComponent(roomId)}/access`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password, uuid })
+                })).json();
+            } catch (e) { error = 'No se ha podido comprobar. Revisa la conexión.'; continue; }
+            if (!res.exists) { alert('Esa sala ya no existe.'); location.reload(); return; }
+            if (res.ok) { sessionStorage.setItem(`roomPassword_${roomId}`, password); break; }
+            error = 'Contraseña incorrecta. Prueba otra vez.';
         }
-        sessionStorage.setItem(`roomPassword_${roomId}`, password); // Store password in sessionStorage
     }
-
-    // For now, we'll use a dummy user object. In a real app, this would come from authentication.
-    // The server expects a 'user' object with 'uuid' and 'name'.
-    // We'll also add the password to the user object for the server to check.
-    const user = {
-        uuid: localStorage.getItem('userUuid') || generateUserUuid(), // Get or generate a UUID for the user
-        name: localStorage.getItem('userName') || 'Anónimo', // Get or set a default name
-        password: password // Include the password for the server to validate
-    };
-    localStorage.setItem('userUuid', user.uuid);
-    localStorage.setItem('userName', user.name);
-
-    socket.emit('joinRoom', { gameType: gameType, roomId: roomId, user: user });
+    window.location.href = `/game/${gameType}/${roomId}`;
 }
 
 socket.on('roomState', (gameState) => {
-    // When a user successfully joins, the server will emit 'roomState'
-    // Redirect to the game page
+    // Al unirse correctamente, el servidor emite 'roomState': vamos a la partida
     window.location.href = `/game/${gameType}/${gameState.id}`;
 });
 
@@ -36,31 +46,36 @@ socket.on('error', (data) => {
     alert(`Error: ${data.message}`);
 });
 
+function renderRoomRow(room, i) {
+    const players = Number(room.playerCount) || 0;
+    return `
+        <li class="room-row" style="animation-delay:${i * 40}ms">
+            <span class="room-icon" aria-hidden="true"><i class="bi ${room.hasPassword ? 'bi-lock-fill' : 'bi-door-open-fill'}"></i></span>
+            <span class="room-info">
+                <span class="room-name">${escapeHtml(room.name)}</span>
+                <span class="room-meta"><span class="num">${players}</span> ${players === 1 ? 'jugador' : 'jugadores'}${room.hasPassword ? ' · con contraseña' : ''}</span>
+            </span>
+            <button class="tp-btn tp-btn--chalk tp-btn--sm btn-join" onclick="handleJoinRoom('${escapeHtml(room.id)}', ${room.hasPassword ? 'true' : 'false'})">Unirse</button>
+        </li>`;
+}
+
 socket.on('roomListUpdate', async () => {
-    console.log('Recibido roomListUpdate. Actualizando lista de salas...');
     try {
         const response = await fetch(`/rooms/${gameType}/data`);
         if (response.ok) {
             const data = await response.json();
             const roomListContainer = document.getElementById('room-list-container');
             if (roomListContainer) {
-                let roomsHtml = '';
                 if (data.rooms.length > 0) {
-                    data.rooms.forEach(room => {
-                        roomsHtml += `
-                            <li class="list-group-item">
-                                <span>
-                                    ${room.name} (${room.playerCount} jugadores)
-                                    ${room.hasPassword ? '<i class="bi bi-lock-fill ms-2"></i>' : ''}
-                                </span>
-                                <button class="btn btn-join" onclick="handleJoinRoom('${room.id}', ${room.hasPassword})">Unirse</button>
-                            </li>
-                        `;
-                    });
+                    roomListContainer.innerHTML = data.rooms.map(renderRoomRow).join('');
                 } else {
-                    roomsHtml = '<p>No hay salas disponibles. ¡Crea una!</p>';
+                    roomListContainer.innerHTML = `
+                        <li class="rooms-empty">
+                            <span class="rooms-empty-art" aria-hidden="true"><i class="bi bi-suit-spade-fill"></i></span>
+                            <strong>Aún no hay salas abiertas</strong>
+                            <span>Crea una y pasa el enlace al grupo. Aparecerá aquí al momento.</span>
+                        </li>`;
                 }
-                roomListContainer.innerHTML = roomsHtml;
             }
         }
     } catch (error) {
@@ -75,13 +90,3 @@ function generateUserUuid() {
     });
     return uuid;
 }
-
-// This part handles the creator not being prompted for a password.
-// It assumes that after creating a room, the server redirects the creator
-// to the /game/:gameType/:roomId page directly, or the client-side
-// logic for room creation will handle the automatic join.
-// For now, we'll assume the server redirects the creator directly to the game page
-// after successful room creation, bypassing the need to join via the room list.
-// If the creator *does* end up on the room list page, they would still be prompted.
-// A more robust solution would involve passing a 'justCreated' flag or similar
-// from the server to the client after room creation.

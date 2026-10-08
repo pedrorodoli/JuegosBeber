@@ -1,253 +1,104 @@
-/* Estilos para el juego de La Pirámide - Layout Principal */
+/* La Pirámide */
 
-@keyframes gradientBG {
-    0% { background: linear-gradient(135deg, #1a1a2e, #162447); }
-    50% { background: linear-gradient(135deg, #162447, #1a1a2e); }
-    100% { background: linear-gradient(135deg, #1a1a2e, #162447); }
+body.pyramid { --cw: 62px; }
+body.levels-3 { --cw: 76px; }
+body.levels-4 { --cw: 64px; }
+body.levels-5 { --cw: 54px; }
+body.levels-6 { --cw: 46px; }
+@media (min-width: 700px) {
+  /* (clon) el tamaño de carta también depende del alto: así caben pirámide, jugadas y tus cartas sin quedar debajo del panel */
+  body.levels-3 { --cw: min(104px, calc((100dvh - 420px) / 4.9)); }
+  body.levels-4 { --cw: min(92px, calc((100dvh - 420px) / 6.5)); }
+  body.levels-5 { --cw: min(80px, calc((100dvh - 420px) / 8.1)); }
+  body.levels-6 { --cw: min(70px, calc((100dvh - 420px) / 9.7)); }
 }
 
-html, body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-y: auto;
-    font-family: 'Roboto', sans-serif;
-}
+/* Pirámide */
+#pyramid-area { display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; padding: 0.5rem 0 0.25rem; }
+.pyramid-row { display: flex; justify-content: center; gap: 8px; }
 
-body {
-    color: #f5f5f5;
-    animation: gradientBG 20s ease infinite;
-    display: flex;
-    flex-direction: column;
-}
-
-/* --- Layout Sections --- */
-.game-header {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    padding: 1rem;
-    width: 100%;
-    box-sizing: border-box;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.game-main-area {
-    flex-grow: 1; /* Takes up all available space */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 400px;
-}
-
-.player-footer {
-    padding: 0.75rem;
-    background: rgba(0,0,0,0.3);
-    backdrop-filter: blur(5px);
-    text-align: center;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    z-index: 200;
-}
-
-/* --- Components --- */
-.game-card {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border-radius: 10px;
-    padding: 0.8rem;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    flex-grow: 1;
-    height: 200px; /* Taller */
-    display: flex;
-    flex-direction: column;
-}
-
-.game-card h2 {
-    color: #ff6b81;
-    font-family: 'Montserrat', sans-serif;
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-}
-
-#player-list-card {
-    flex-basis: 200px; /* Give a base width */
-    flex-grow: 0; /* Don't grow beyond base width */
-}
-
-#player-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    overflow-y: auto;
-    flex-grow: 1;
-}
-
-#player-list li {
-    padding: 0.3rem 0.5rem;
-    font-size: 0.85rem;
-    background: rgba(0,0,0,0.2);
-    border-radius: 4px;
-    margin-bottom: 4px;
-}
-
-#actions-log-area {
-    flex-grow: 1;
-}
-
-#actions-log {
-    overflow-y: auto;
-    flex-grow: 1;
-}
-#actions-log p {
-    margin: 0 0 0.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    font-size: 0.8rem;
-}
-
-#pyramid-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.pyramid-row {
-    display: flex;
-    justify-content: center;
-    margin-bottom: -50px; /* Overlap cards */
-}
-
-.card {
-    width: 80px;
-    height: 120px;
-    margin: 0 3px;
-    perspective: 800px;
-    background-color: transparent;
-    border: none;
-}
-
-/* Card sizes for different levels */
-.levels-3 #pyramid-area .card,
-.levels-3 #challenge-pyramid-card .card {
-    width: 70px;
-    height: 105px;
-}
-
-.levels-4 #pyramid-area .card,
-.levels-4 #challenge-pyramid-card .card {
-    width: 60px;
-    height: 90px;
-}
-
-.levels-5 #pyramid-area .card,
-.levels-5 #challenge-pyramid-card .card {
-    width: 54px;
-    height: 81px;
-}
-
-.levels-6 #pyramid-area .card,
-.levels-6 #challenge-pyramid-card .card {
-    width: 50px;
-    height: 75px;
-}
-
+/* Carta (estructura de pyramid.js) */
+.card { width: 56px; aspect-ratio: 100 / 153; perspective: 900px; flex: none; }
+#pyramid-area .card, #challenge-pyramid-card .card { width: var(--cw); }
 .card-inner {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
-    transform-style: preserve-3d;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-    border-radius: 5px;
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 680ms var(--ease-out);
+  border-radius: 7px;
+  box-shadow: 0 10px 18px -10px rgba(2,14,10,0.95);
 }
-
-.card.revealed .card-inner {
-    transform: rotateY(180deg);
-}
-
+.card.revealed .card-inner { transform: rotateY(180deg); }
 .card-front, .card-back {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    border-radius: 5px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+  position: absolute; inset: 0; border-radius: inherit;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  background-color: #fff; background-size: cover; background-position: center;
 }
+.card-front { transform: rotateY(180deg); }
 
-.card-front {
-    transform: rotateY(180deg);
+/* Entrada escalonada de la pirámide al repartir */
+#pyramid-area.is-dealing .card { animation: tp-deal 420ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
+
+/* Carta activa */
+.card.active-card { z-index: 1; }
+.card.active-card .card-inner { box-shadow: 0 0 0 3px var(--chip), 0 18px 28px -12px rgba(255, 90, 60, 0.6); }
+.card.just-revealed { animation: py-lift 680ms var(--ease-out) both !important; }
+@keyframes py-lift { 0% { transform: none; } 40% { transform: translateY(-10px) scale(1.06); } 100% { transform: none; } }
+
+/* Registro de jugadas */
+.py-log { width: 100%; max-width: 440px; margin-top: 1.1rem; }
+#actions-log {
+  max-height: 4.6rem; overflow-y: auto; text-align: left;
+  padding: 0.55rem 0.8rem; border-radius: var(--r-sm);
+  background: rgba(6, 24, 18, 0.55); border: 1px solid var(--line);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 18px);
 }
+#actions-log:empty { display: none; }
+#actions-log p { margin: 0; padding: 0.15rem 0; font-size: 0.84rem; color: var(--muted); }
+#actions-log p:last-child { color: var(--chalk); font-weight: 600; animation: tp-rise 320ms var(--ease-out) both; }
 
-.player-footer h2 {
-    margin: 0 0 0.5rem;
-    font-size: 1rem;
-    color: #eee;
+/* Mano */
+#player-hand { display: flex; justify-content: center; gap: 10px; min-height: 84px; margin-bottom: 0.85rem; }
+#player-hand .card { width: 56px; transition: transform 220ms var(--ease-out), opacity 200ms ease; }
+.card.used-card { opacity: 0.32; filter: grayscale(0.6); }
+.card.selectable { cursor: pointer; transform: translateY(-8px); }
+.card.selectable .card-inner { box-shadow: 0 0 0 2.5px var(--chip), 0 14px 22px -10px rgba(255, 90, 60, 0.55); }
+.card.selectable:active { transform: translateY(-4px) scale(0.97); }
+@media (hover: hover) and (pointer: fine) { .card.selectable:hover { transform: translateY(-12px); } }
+
+#player-hand.is-dealing .card { animation: tp-deal 420ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
+#player-actions:empty { display: none; }
+#player-actions .btn-small { flex: 1 1 140px; max-width: 220px; animation: tp-rise 300ms var(--ease-out) both; }
+#player-actions .is-armed { background: var(--chalk); color: var(--felt-900); }
+#my-drinks-count:not(:empty) { margin-top: 0.75rem; }
+
+/* Jugadores que ya han pasado esta ronda */
+.g-chip.is-passed { opacity: 0.55; }
+
+/* Hoja: elegir objetivo */
+#target-player-list { display: grid; gap: 8px; margin: 0.25rem 0 1rem; max-height: 50vh; overflow-y: auto; }
+.target-btn {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.75rem;
+  width: 100%; min-height: 56px; padding: 0.5rem 0.9rem 0.5rem 0.6rem;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--felt-800); color: var(--chalk); text-align: left;
+  font: 600 1rem/1.2 var(--font-body); cursor: pointer; touch-action: manipulation;
+  transition: transform 140ms var(--ease-out), background-color 160ms ease, border-color 160ms ease;
 }
+.target-btn i { color: var(--muted); }
+.target-btn:active { transform: scale(0.98); background: var(--felt-600); }
+@media (hover: hover) and (pointer: fine) { .target-btn:hover { border-color: var(--chip); } }
 
-#player-hand {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 1rem;
+/* Hoja: desafío */
+.challenge-sheet { text-align: center; }
+#challenge-pyramid-card { display: flex; justify-content: center; margin: 0.5rem 0 1.25rem; }
+#challenge-pyramid-card .card { width: 96px; animation: tp-pop 360ms var(--ease-out) both; }
+.challenge-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.challenge-actions .btn-custom, .challenge-actions .tp-btn { flex-direction: column; gap: 0.15rem; min-height: 64px; white-space: normal; }
+.challenge-actions span { font-size: 0.78rem; font-weight: 500; opacity: 0.8; }
+
+/* Mesa vacía antes de empezar */
+#pyramid-area:empty::before {
+  content: "La pirámide aparecerá cuando empiece la partida";
+  display: block; max-width: 22ch; color: var(--muted); font-size: 1rem; text-align: center;
 }
-
-.card.used-card {
-    opacity: 0.4;
-    filter: grayscale(100%);
-}
-
-.card.selectable {
-    cursor: pointer;
-    box-shadow: 0 0 25px 7px rgba(255, 255, 0, 0.8) !important; 
-    transform: scale(1.08);
-}
-
-#player-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-bottom: 0.5rem;
-}
-
-.btn-small {
-    background: linear-gradient(45deg, #4e54c8, #8f94fb);
-    padding: 8px 16px;
-    font-size: 0.9rem;
-    border-radius: 20px;
-    border: none;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.btn-small:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 20px rgba(102, 109, 255, 0.5);
-}
-
-#my-drinks-count {
-    color: #ff6b81;
-    font-weight: bold;
-    font-size: 1rem;
-    min-height: 1.2em; /* Reserve space to prevent layout shift */
-}
-
-/* Modal Styles */
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(10px); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 1rem;}
-.modal-content { background: rgba(255, 255, 255, 0.1); padding: 1.5rem; border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.2); width: 100%; max-width: 400px;}
-.modal-content h2 { color: #ff6b81; margin-top: 0; font-size: 1.5rem;}
-.modal-content input { display: block; width: 100%; padding: 0.75rem; margin: 1rem 0; border-radius: 8px; border: 1px solid #555; background: rgba(0,0,0,0.2); color: white; font-size: 1.2rem; box-sizing: border-box;}
-#target-player-list button { display: block; width: 100%; margin-bottom: 0.5rem; }
-.challenge-actions { display: flex; justify-content: space-around; margin-top: 1rem; }
-#challenge-pyramid-card .card { margin: 0.5rem auto; }
-.challenge-actions .btn-custom span { font-size: 0.8rem; color: #eee; display: block;}
-
-.btn-custom { background: linear-gradient(45deg, #ff416c, #ff4b2b); border: none; padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: bold; color: white; border-radius: 50px; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer;}
-.btn-custom:hover { transform: scale(1.05); box-shadow: 0 8px 30px rgba(255, 75, 43, 0.6); }

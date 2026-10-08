@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head', { ads: false }) %>
+    <title><%= title %></title>
+    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Crea tu propia sala de juegos beber online.' %>">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-page">
+    <%- include('partials/topbar', { back: '/rooms/cofres', backLabel: 'Volver a las salas' }) %>
+
+    <main class="admin-main">
+        <header class="admin-head">
+            <h1 class="tp-rise">Nueva sala</h1>
+            <p class="tp-rise" style="--i:1"><strong>Cofres del Tesoro.</strong> <%= typeof description !== 'undefined' ? description : '' %></p>
+        </header>
+
+        <form id="create-room-form" class="admin-form tp-panel tp-rise" style="--i:2" novalidate>
+            <div class="tp-field">
+                <label class="tp-label" for="room-name">Nombre de la sala</label>
+                <input class="tp-input" type="text" id="room-name" name="room-name" placeholder="La guarida del pirata" maxlength="40" required autocomplete="off">
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="password">Contraseña <span class="tp-optional">opcional</span></label>
+                <input class="tp-input" type="password" id="password" name="password" placeholder="Déjala vacía para una sala pública" autocomplete="new-password">
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="num-chests">Número de cofres</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="num-chests" name="num-chests" value="20" min="10" max="30">
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+                <span class="tp-hint">Entre 10 y 30.</span>
+            </div>
+            <p class="tp-form-error" role="alert" hidden></p>
+            <button type="submit" class="tp-btn tp-btn--block admin-submit">Crear sala <i class="bi bi-arrow-right"></i></button>
+        </form>
+
+        <section class="admin-rules tp-rise" style="--i:3">
+            <%- include('partials/game_rules', { gameType: 'cofres' }) %>
+        </section>
+    </main>
+
+    <%- include('partials/footer') %>
+    <script src="/js/create-room.js"></script>
+    <script>
+        tpCreateRoom({
+            gameType: 'cofres',
+            form: 'create-room-form',
+            build: function (form) {
+                const nameInput = document.getElementById('room-name');
+                if (!nameInput.value.trim()) { nameInput.focus(); throw new Error('Ponle un nombre a la sala.'); }
+                return {
+                    name: nameInput.value,
+                    password: document.getElementById('password').value,
+                    settings: { numChests: document.getElementById('num-chests').value }
+                };
+            }
+        });
+    </script>
+    <%- include('partials/analytics') %>
+</body>
+</html>

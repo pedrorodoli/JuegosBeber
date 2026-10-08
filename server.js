@@ -3,13 +3,18 @@ require('dotenv').config({ quiet: true }); // Load environment variables from .e
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const { exec } = require('child_process');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const activeGameIntervals = {}; // To store setInterval IDs for active games
 const lamenteTimeouts = {}; // To store setInterval IDs for La Mente game countdowns
 const db = require('./db'); // Import the database module
+const { simulateBallDrop } = require('./public/js/bolita-physics'); // (clon) física compartida con el navegador
+const analyticsDb = require('./analyticsDb');
+const geoUtils = require('./geoUtils');
 
 const app = express();
+app.set('trust proxy', true);
 const server = http.createServer(app);
 const io = socketIo(server);
 
@@ -166,8 +171,150 @@ function createAutobusState() {
     };
 }
 
+function createCofresState(settings) {
+    let numChests = parseInt(settings?.numChests, 10) || 20;
+    if (numChests < 10) numChests = 10;
+    if (numChests > 30) numChests = 30;
+
+    return {
+        game: 'cofres',
+        phase: 'waiting',
+        players: [],
+        turnOrder: [],
+        currentPlayerIndex: 0,
+        chests: [],
+        lastAction: null,
+        settings: {
+            numChests: numChests
+        }
+    };
+}
+
+function createBolitaState(settings) {
+    const numBumpers = parseInt(settings?.numBumpers, 10) || 4;
+    const state = {
+        game: 'bolita',
+        phase: 'waiting',
+        players: [],
+        turnOrder: [],
+        currentPlayerIndex: 0,
+        pegs: [],
+        prizes: [],
+        ballState: {
+            dropping: false,
+            path: null,
+            startX: null,
+            finalHole: null,
+            reward: null
+        },
+        lastAction: null,
+        settings: {
+            numBumpers: numBumpers
+        }
+    };
+    return state;
+}
+
+function regenerateBolitaRound(gameState) {
+    const numBumpers = gameState.settings.numBumpers || 4;
+
+    // Generate prizes array (6 items)
+    const prizePool = [
+        { type: 'BEBE', value: 1, text: 'Bebes 1 trago' },
+        { type: 'BEBE', value: 2, text: 'Bebes 2 tragos' },
+        { type: 'BEBE', value: 3, text: 'Bebes 3 tragos' },
+        { type: 'REPARTE', value: 1, text: 'Repartes 1 trago' },
+        { type: 'REPARTE', value: 2, text: 'Repartes 2 tragos' },
+        { type: 'REPARTE', value: 3, text: 'Repartes 3 tragos' },
+        { type: 'TODOS', value: 1, text: '¡Beben todos!' },
+        { type: 'CHUPITO', value: 1, text: '¡Toma un chupito!' },
+        { type: 'MANDA_CHUPITO', value: 1, text: '¡Manda un chupito!' },
+        { type: 'SALVADO', value: 0, text: '¡Te salvas!' }
+    ];
+
+    // Pick 6 random prizes
+    const prizes = [];
+    for (let i = 0; i < 6; i++) {
+        prizes.push(prizePool[Math.floor(Math.random() * prizePool.length)]);
+    }
+
+    // Generate random pegs using dart-throwing (Poisson-disk-like) for organic distribution
+    const pegs = [];
+    const minDistance = 56;
+    const maxPegs = 48;
+    let attempts = 0;
+
+    while (pegs.length < maxPegs && attempts < 2000) {
+        // Range: X inside [30, 570], Y inside [160, 630]
+        const px = Math.random() * 540 + 30;
+        const py = Math.random() * 470 + 160;
+
+        let tooClose = false;
+        for (const peg of pegs) {
+            const dx = px - peg.x;
+            const dy = py - peg.y;
+            if (dx * dx + dy * dy < minDistance * minDistance) {
+                tooClose = true;
+                break;
+            }
+        }
+
+        if (!tooClose) {
+            pegs.push({
+                id: `rand-peg-${pegs.length}`,
+                x: Math.round(px * 10) / 10,
+                y: Math.round(py * 10) / 10,
+                r: 8,
+                isBumper: false
+            });
+        }
+        attempts++;
+    }
+
+    // Place bumpers by converting random pegs
+    let bumpersPlaced = 0;
+    let bumperAttempts = 0;
+    while (bumpersPlaced < numBumpers && bumperAttempts < 100) {
+        const idx = Math.floor(Math.random() * pegs.length);
+        if (pegs[idx] && !pegs[idx].isBumper) {
+            pegs[idx].isBumper = true;
+            pegs[idx].r = 18; // larger radius
+            bumpersPlaced++;
+        }
+        bumperAttempts++;
+    }
+
+    // Add static divider pegs at Y = 680 to let the ball bounce off slot dividers
+    const dividers = [100, 200, 300, 400, 500];
+    for (let i = 0; i < dividers.length; i++) {
+        pegs.push({
+            id: `div-peg-${i}`,
+            x: dividers[i],
+            y: 680,
+            r: 7,
+            isBumper: false,
+            isDividerPeg: true
+        });
+    }
+
+    gameState.pegs = pegs;
+    gameState.prizes = prizes;
+    gameState.ballState = {
+        dropping: false,
+        path: null,
+        startX: null,
+        finalHole: null,
+        reward: null
+    };
+}
+
+
+
+
+
 function getSanitizedGameState(gameState) {
     const stateToSend = { ...gameState };
+    stateToSend.serverNow = Date.now(); // (clon) para que los relojes del cliente se sincronicen
     // currentTimeout is not for persistence, so ensure it's removed if somehow present.
     if (stateToSend.currentTimeout) {
         delete stateToSend.currentTimeout;
@@ -211,8 +358,21 @@ async function advanceRaceStep(roomId, gameType) {
 
     // 3. Comprueba si hay un ganador
     if (raceData.positions[drawnCard.suit] >= settings.levels) {
-        await endRace(roomId, gameType, drawnCard.suit);
-        // endRace already handles persistence and emission
+        // Clear interval immediately to stop the race
+        if (activeGameIntervals[roomId]) {
+            clearInterval(activeGameIntervals[roomId]);
+            delete activeGameIntervals[roomId];
+        }
+
+        // Persist and notify clients about the final position BEFORE ending the race
+        // This allows clients to see the horse cross the finish line
+        await db.updateGameState(roomId, gameState);
+        io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
+
+        // Wait 3 seconds before transitioning to the results/distribution phase
+        setTimeout(async () => {
+            await endRace(roomId, gameType, drawnCard.suit);
+        }, 3000);
     } else {
         // Continue race: persist state and notify clients
         await db.updateGameState(roomId, gameState);
@@ -258,7 +418,7 @@ async function endRace(roomId, gameType, winnerSuit) {
     const room = await db.getRoomById(roomId);
     if (!room) return;
     let gameState = await db.getGameState(roomId);
-    if (!gameState) return;
+    if (!gameState || gameState.phase !== 'race') return;
 
     console.log(`[Server] Carrera finalizada en ${roomId}. Ganador: ${winnerSuit}`);
     
@@ -389,6 +549,7 @@ async function startRouletteBetting(roomId) {
     gameState.bets = {};
     gameState.winningNumber = null;
     gameState.timer = gameState.settings.bettingTime;
+    gameState.bettingEndsAt = Date.now() + gameState.settings.bettingTime * 1000; // (clon) el reloj cuenta hasta aquí
 
     if (activeGameIntervals[roomId]) clearInterval(activeGameIntervals[roomId]);
 
@@ -458,7 +619,7 @@ async function endRouletteRound(roomId) {
             // No distribution needed, start new round
             await startRouletteBetting(roomId);
         }
-    }, currentState.settings.resultTime * 1000);
+    }, gameState.settings.resultTime * 1000); // (clon) antes usaba currentState fuera de su ámbito y tumbaba el servidor
 }
 
 app.set('view engine', 'ejs');
@@ -466,9 +627,175 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+// --- Analytics & Real-time Dashboard ---
+const STATS_PASSWORD = process.env.STATS_PASSWORD || 'juegosbeber';
+
+// (clon) La cookie ya no guarda la clave en Base64 (se podía leer tal cual): guarda un hash.
+const STATS_TOKEN = require('crypto').createHash('sha256').update('jb-stats:' + STATS_PASSWORD).digest('hex');
+function hasStatsCookie(cookieHeader) {
+    return (cookieHeader || '').split(';').some(c => c.trim() === `jb_stats_auth=${STATS_TOKEN}`);
+}
+function isDashboardAuthorized(req) {
+    if (!STATS_PASSWORD) return true;
+    if (hasStatsCookie(req.headers.cookie)) return true;
+    if (req.query.key && req.query.key === STATS_PASSWORD) return true;
+    return false;
+}
+
+// (clon) Salas activas en este momento, para /stats
+async function getLiveRooms() {
+    const rooms = await db.getAllRooms();
+    const byGame = {};
+    const list = [];
+    let totalPlayers = 0;
+    for (const room of rooms) {
+        const connected = (io.sockets.adapter.rooms.get(room.id) || { size: 0 }).size;
+        let phase = null, players = 0;
+        try { const gs = await db.getGameState(room.id); if (gs) { phase = gs.phase || null; players = Array.isArray(gs.players) ? gs.players.length : 0; } } catch (e) {}
+        totalPlayers += connected;
+        const g = byGame[room.gameType] || (byGame[room.gameType] = { gameType: room.gameType, rooms: 0, players: 0 });
+        g.rooms++; g.players += connected;
+        list.push({ id: room.id, name: room.name, gameType: room.gameType, isPublic: !!room.isPublic, hasPassword: room.hasPassword, connected, players, phase });
+    }
+    list.sort((a, b) => b.connected - a.connected);
+    return { totalRooms: rooms.length, totalPlayers, byGame: Object.values(byGame).sort((a, b) => b.players - a.players || b.rooms - a.rooms), rooms: list.slice(0, 30) };
+}
+
+// Redirección de /dashboard a /stats
+app.get('/dashboard', (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(301, '/stats' + qs);
+});
+
+// Ruta principal de estadísticas (/stats)
+app.get('/stats', (req, res) => {
+    if (req.query.key && req.query.key === STATS_PASSWORD) {
+        const token = STATS_TOKEN;
+        res.setHeader('Set-Cookie', `jb_stats_auth=${token}; Path=/; HttpOnly; Max-Age=2592000; SameSite=Lax`);
+    }
+    res.render('stats', {
+        title: 'Estadísticas en Tiempo Real - JuegosBeber.es'
+    });
+});
+
+// Autenticación para el Dashboard
+app.post('/api/analytics/auth', (req, res) => {
+    const { key } = req.body;
+    if (key === STATS_PASSWORD) {
+        const token = STATS_TOKEN;
+        res.setHeader('Set-Cookie', `jb_stats_auth=${token}; Path=/; HttpOnly; Max-Age=2592000; SameSite=Lax`);
+        return res.json({ success: true });
+    }
+    res.status(401).json({ success: false, message: 'Clave incorrecta' });
+});
+
+// Datos para Estadísticas (/stats y /dashboard)
+app.get(['/api/analytics/stats-data', '/api/analytics/dashboard-data'], async (req, res) => {
+    try {
+        if (!isDashboardAuthorized(req)) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const range = req.query.range || 'today';
+        const os = req.query.os || null;
+        const data = await analyticsDb.getDashboardData(db.pool, range, os);
+        try { data.liveRooms = await getLiveRooms(); } catch (e) { data.liveRooms = null; }
+        res.json(data);
+    } catch (err) {
+        console.error('[Analytics] Error obteniendo datos de estadísticas:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Resetear todas las estadísticas
+app.post('/api/analytics/reset-stats', async (req, res) => {
+    try {
+        if (!isDashboardAuthorized(req)) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        await analyticsDb.resetAnalytics(db.pool);
+        io.to('analytics_dashboard').emit('analytics:reset');
+        res.json({ success: true, message: 'Todas las estadísticas han sido reseteadas.' });
+    } catch (err) {
+        console.error('[Analytics] Error reseteando estadísticas:', err);
+        res.status(500).json({ error: 'Error reseteando estadísticas' });
+    }
+});
+
+// Registrar visita (Pageview)
+app.post('/api/analytics/pageview', async (req, res) => {
+    try {
+        const { visitorId, sessionId, path: visitPath, title, referrer, screenRes, language } = req.body;
+        if (!visitorId || !sessionId) {
+            return res.status(400).json({ error: 'Missing identifiers' });
+        }
+
+        const geo = geoUtils.getGeoInfo(req);
+        const ua = geoUtils.parseUserAgent(req.headers['user-agent']);
+
+        await analyticsDb.recordVisit(db.pool, {
+            visitorId,
+            sessionId,
+            path: visitPath || '/',
+            title,
+            referrer,
+            geo,
+            ua,
+            screenRes,
+            language
+        });
+
+        // Notificar en tiempo real al Dashboard
+        const active = await analyticsDb.getActiveUsers(db.pool);
+        io.to('analytics_dashboard').emit('analytics:new_visit', {
+            path: visitPath || '/',
+            title: title || '',
+            countryCode: geo.countryCode,
+            countryName: geo.countryName,
+            flag: geo.flag,
+            city: geo.city,
+            deviceType: ua.deviceType,
+            browserName: ua.browserName,
+            activeCount: active.count
+        });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Analytics] Error en /api/analytics/pageview:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Heartbeat de presencia activa
+app.post('/api/analytics/heartbeat', async (req, res) => {
+    try {
+        const { sessionId, path: currentPath, title } = req.body;
+        if (sessionId) {
+            await analyticsDb.recordHeartbeat(db.pool, sessionId, currentPath, title);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Finalizar sesión activa (desconexión inmediata al salir de la página)
+app.post('/api/analytics/session-end', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (sessionId) {
+            await analyticsDb.endSession(db.pool, sessionId);
+            const active = await analyticsDb.getActiveUsers(db.pool);
+            io.to('analytics_dashboard').emit('analytics:active_count', active.count);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 app.get('/sitemap.xml', (req, res) => {
     const baseUrl = 'https://juegosbeber.es';
-    const gameTypes = ['horse-race', 'voting', 'roulette', 'pyramid', 'autobus', 'lamente', 'imitador'];
+    const gameTypes = ['horse-race', 'voting', 'roulette', 'pyramid', 'autobus', 'lamente', 'imitador', 'cofres', 'bolita'];
     
     let xml = '<?xml version="1.0" encoding="UTF-8"?>';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
@@ -477,7 +804,7 @@ app.get('/sitemap.xml', (req, res) => {
     xml += `<url><loc>${baseUrl}/</loc><priority>1.0</priority><changefreq>weekly</changefreq></url>`;
     xml += `<url><loc>${baseUrl}/privacy</loc><priority>0.5</priority><changefreq>yearly</changefreq></url>`;
     xml += `<url><loc>${baseUrl}/terms</loc><priority>0.5</priority><changefreq>yearly</changefreq></url>`;
-    
+    xml += `<url><loc>${baseUrl}/contact</loc><priority>0.5</priority><changefreq>yearly</changefreq></url>`;
     // Game room listing pages
     gameTypes.forEach(type => {
         xml += `<url><loc>${baseUrl}/rooms/${type}</loc><priority>0.8</priority><changefreq>daily</changefreq></url>`;
@@ -504,6 +831,22 @@ app.get('/terms', (req, res) => res.render('terms', {
     description: 'Lee los términos y condiciones de uso de JuegosBeber.es. Juega con responsabilidad y conoce nuestras normas de la comunidad.'
 }));
 
+app.post('/api/restart-pm2', (req, res) => {
+    exec('pm2 restart 10', (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Error al reiniciar PM2: ${error}`);
+            return res.status(500).json({ error: 'Error al reiniciar el servicio' });
+        }
+        console.log(`Salida del comando: ${stdout}`);
+        res.json({ message: 'Servicio reiniciado correctamente' });
+    });
+});
+
+app.get('/contact', (req, res) => res.render('contact', {
+    title: 'Contacto - JuegosBeber.es',
+    description: 'Contacta con JuegosBeber.es para dudas, sugerencias o incidencias.'
+}));
+
 app.get('/rooms/:gameType', async (req, res) => {
     const { gameType } = req.params;
 
@@ -514,7 +857,9 @@ app.get('/rooms/:gameType', async (req, res) => {
         'pyramid': 'La Pirámide',
         'autobus': 'El Autobús',
         'lamente': 'La Mente',
-        'imitador': 'El Imitador'
+        'imitador': 'El Imitador',
+        'cofres': 'Cofres del Tesoro',
+        'bolita': 'La Bolita'
     };
     
     const gameDescriptions = {
@@ -524,7 +869,9 @@ app.get('/rooms/:gameType', async (req, res) => {
         'pyramid': 'El juego de cartas de la Pirámide: memoria y faroleo para hacer beber a tus amigos.',
         'autobus': '¿Podrás bajarte del autobús? Adivina las cartas y evita acumular tragos en este juego de pura tensión.',
         'lamente': 'Un reto cooperativo de sincronización mental. Juega tus cartas en orden sin hablar.',
-        'imitador': 'Imita a tus amigos y trata de que no te pillen. El juego de risas y personificación definitivo.'
+        'imitador': 'Imita a tus amigos y trata de que no te pillen. El juego de risas y personificación definitivo.',
+        'cofres': 'Abre cofres del tesoro y descubre qué castigo te espera. ¡Suerte!',
+        'bolita': 'Suelta la bola desde la parte superior y mira cómo rebota por los obstáculos aleatorios hasta llegar a los premios. ¡Sincronizado en tiempo real!'
     };
 
     const prettyGameName = gameTypeNames[gameType] || gameType;
@@ -539,7 +886,7 @@ app.get('/rooms/:gameType', async (req, res) => {
     }));
 
     res.render('rooms', { 
-        title: `Salas de ${prettyGameName} - JuegosBeber.es`, 
+        title: `${prettyGameName}`, 
         gameType, 
         rooms: roomsWithPlayerCount,
         description: description
@@ -557,6 +904,21 @@ app.get('/rooms/:gameType/data', async (req, res) => {
     }));
 
     res.json({ rooms: roomsWithPlayerCount });
+});
+
+// (clon) Comprobar la contraseña ANTES de entrar en la sala (lista de salas y enlaces de invitación)
+app.post('/api/rooms/:roomId/access', async (req, res) => {
+    try {
+        const room = await db.getRoomById(req.params.roomId);
+        if (!room) return res.status(404).json({ exists: false });
+        const { password, uuid } = req.body || {};
+        const needsPassword = !!room.password && room.creatorId !== uuid;
+        const ok = !needsPassword || (typeof password === 'string' && password === room.password);
+        res.json({ exists: true, gameType: room.gameType, needsPassword, ok });
+    } catch (err) {
+        console.error('[Server] Error comprobando acceso:', err.message);
+        res.status(500).json({ error: 'No se pudo comprobar la sala.' });
+    }
 });
 
 app.get('/game/:gameType/:roomId', async (req, res) => {
@@ -585,6 +947,10 @@ app.get('/game/:gameType/:roomId', async (req, res) => {
         view = 'lamente';
     } else if (gameType === 'imitador') {
         view = 'imitador';
+    } else if (gameType === 'cofres') {
+        view = 'cofres';
+    } else if (gameType === 'bolita') {
+        view = 'bolita';
     } else {
         return res.status(404).send('Tipo de juego no encontrado.');
     }
@@ -596,12 +962,14 @@ app.get('/game/:gameType/:roomId', async (req, res) => {
         'pyramid': 'La Pirámide',
         'autobus': 'El Autobús',
         'lamente': 'La Mente',
-        'imitador': 'El Imitador'
+        'imitador': 'El Imitador',
+        'cofres': 'Cofres del Tesoro',
+        'bolita': 'La Bolita'
     };
     const prettyGameName = gameTypeNames[gameType] || gameType;
     
     res.render(view, { 
-        title: `Jugando a ${prettyGameName} - JuegosBeber.es`, 
+        title: `${prettyGameName}`, 
         gameType, 
         roomId, 
         players: players,
@@ -613,13 +981,15 @@ app.get('/admin/:gameType', (req, res) => {
     const { gameType } = req.params;
 
     const gameTitles = {
-        'horse-race': 'Crear Carrera de Caballos - JuegosBeber.es',
-        'voting': 'Crear Votación - JuegosBeber.es',
-        'roulette': 'Configurar Ruleta - JuegosBeber.es',
-        'pyramid': 'Crear Sala de Pirámide - JuegosBeber.es',
-        'autobus': 'Crear Sala de El Autobús - JuegosBeber.es',
-        'lamente': 'Crear Sala de La Mente - JuegosBeber.es',
-        'imitador': 'Crear Sala de El Imitador - JuegosBeber.es'
+        'horse-race': 'Carrera de Caballos',
+        'voting': 'Votaciones',
+        'roulette': 'Ruleta',
+        'pyramid': 'La Pirámide',
+        'autobus': 'El Autobús',
+        'lamente': 'La Mente',
+        'imitador': 'El Imitador',
+        'cofres': 'Cofres del Tesoro',
+        'bolita': 'La Bolita'
     };
     
     const gameDescriptions = {
@@ -629,7 +999,9 @@ app.get('/admin/:gameType', (req, res) => {
         'pyramid': 'Elige los niveles de dificultad de tu pirámide de cartas.',
         'autobus': 'Prepara el autobús para tus amigos. ¡Que no se queden arriba!',
         'lamente': 'Configura el rango de números para el desafío mental.',
-        'imitador': 'Crea una sala de imitaciones y risas aseguradas.'
+        'imitador': 'Crea una sala de imitaciones y risas aseguradas.',
+        'cofres': 'Configura el número de cofres para tu partida.',
+        'bolita': 'Configura los bumpers (obstáculos de rebote) de tu tablero de Plinko.'
     };
 
     const title = gameTitles[gameType] || 'Crear Sala - JuegosBeber.es';
@@ -649,6 +1021,10 @@ app.get('/admin/:gameType', (req, res) => {
         res.render('admin-lamente', { title, description, gameType });
     } else if (gameType === 'imitador') {
         res.render('admin-imitador', { title, description, gameType });
+    } else if (gameType === 'cofres') {
+        res.render('admin-cofres', { title, description, gameType });
+    } else if (gameType === 'bolita') {
+        res.render('admin-bolita', { title, description, gameType });
     } else {
         res.status(404).send('Tipo de juego no válido.');
     }
@@ -706,6 +1082,10 @@ app.post('/api/rooms/:gameType', async (req, res) => {
         initialState = createLamenteState(settings);
     } else if (gameType === 'imitador') {
         initialState = createImitadorState(settings);
+    } else if (gameType === 'cofres') {
+        initialState = createCofresState(settings);
+    } else if (gameType === 'bolita') {
+        initialState = createBolitaState(settings);
     }
 
     const newRoom = {
@@ -724,11 +1104,9 @@ app.post('/api/rooms/:gameType', async (req, res) => {
     res.status(201).json({ roomId, creatorId });
 });
 
-const { exec } = require('child_process');
-
 app.post('/restart', (req, res) => {
     console.log('[Server] Recibida solicitud de reinicio...');
-    exec('pm2 restart 11', (error, stdout, stderr) => {
+    exec('pm2 restart 10', (error, stdout, stderr) => {
         if (error) {
             console.error(`[Server] Error al reiniciar: ${error.message}`);
             return res.status(500).send('Error al reiniciar el servidor.');
@@ -743,6 +1121,17 @@ app.post('/restart', (req, res) => {
 
 io.on('connection', (socket) => {
     console.log(`[Server] Usuario conectado: ${socket.id}`);
+
+    // Unirse a la sala de eventos del dashboard de estadísticas
+    socket.on('analytics:join_dashboard', async () => {
+        // (clon) Antes cualquiera podía unirse y recibir cada visita en directo (ciudad, página...)
+        if (STATS_PASSWORD && !hasStatsCookie(socket.handshake.headers.cookie)) return;
+        socket.join('analytics_dashboard');
+        try {
+            const active = await analyticsDb.getActiveUsers(db.pool);
+            socket.emit('analytics:active_count', active.count);
+        } catch (e) {}
+    });
 
     socket.on('joinRoom', async ({ gameType, roomId, user }) => {
         console.log(`[Server] Join request for RoomId: ${roomId}, GameType: ${gameType}, User: ${user.name} (${user.uuid}), Socket: ${socket.id}`);
@@ -761,6 +1150,8 @@ io.on('connection', (socket) => {
         // const ipAddress = socket.handshake.address; // Not used
 
         socket.join(roomId);
+        socket.roomId = roomId;
+        socket.userUuid = user.uuid;
         let gameState = await db.getGameState(roomId);
         if (!gameState) {
             console.log(`[Server] Error: Estado de juego no encontrado para RoomId: ${roomId}`);
@@ -797,6 +1188,12 @@ io.on('connection', (socket) => {
                     }
                 }
 
+                // If reconnecting to 'autobus', ensure their cards are available
+                if (gameType === 'autobus') {
+                    if (!player.currentCards) player.currentCards = [];
+                    console.log(`[Server] Reconnecting Autobús player ${user.name} (${user.uuid}). Cards: ${player.currentCards.length}`);
+                }
+
             } else {
                 // New player
                 console.log(`[Server] New player joining: ${user.name} (${user.uuid}) to RoomId: ${roomId}. Socket: ${socket.id}`);
@@ -823,10 +1220,22 @@ io.on('connection', (socket) => {
                         player.number = null; // Number assigned later
                     }
                 }
+                if (gameType === 'autobus') {
+                    // (clon) entrar con la partida empezada: sin esto, al llegarle el turno el servidor fallaba
+                    Object.assign(player, { currentCards: [], drinksToTake: 0, totalDrinks: 0, hasWon: false, message: '' });
+                }
                 gameState.players.push(player);
             }
+            cancelPendingRemoval(roomId, user.uuid);
         }
         
+        if (gameType === 'bolita' && gameState.phase === 'playing') {
+            if (gameState.turnOrder && !gameState.turnOrder.includes(user.uuid)) {
+                gameState.turnOrder.push(user.uuid);
+                console.log(`[Server] Mid-game join for La Bolita: Added ${user.name} (${user.uuid}) to turnOrder.`);
+            }
+        }
+
         await db.updateGameState(roomId, gameState); // Persist updated state
         console.log(`[Server] User ${user.uuid} joined room ${roomId}. Players in room: ${gameState.players.length}`);
         const stateToSend = getSanitizedGameState(gameState);
@@ -1149,17 +1558,25 @@ io.on('connection', (socket) => {
         gameState.playersFinishedThisRound = []; // UUIDs of players who passed or used all cards
         gameState.pendingActions = []; // Action queue for challenges
 
+        // (clon) con muchos jugadores no hay cartas para todos: avisar en vez de repartir cartas vacías
+        const pyramidCards = gameState.settings.levels * (gameState.settings.levels + 1) / 2;
+        const maxPlayersNow = Math.floor((createDeck().length - pyramidCards) / 2);
+        if (gameState.players.length > maxPlayersNow) {
+            return socket.emit('error', { message: `Con ${gameState.settings.levels} pisos caben como máximo ${maxPlayersNow} jugadores. Baja los pisos o sobra gente.` });
+        }
+
         const deck = shuffleDeck(createDeck());
 
         gameState.playerHands = {};
         gameState.players.forEach(player => {
-            gameState.playerHands[player.uuid] = [
-                { card: deck.pop(), used: false },
-                { card: deck.pop(), used: false }
-            ];
+            gameState.playerHands[player.uuid] = [];
+            for (let i = 0; i < 2; i++) {
+                gameState.playerHands[player.uuid].push({ card: deck.pop(), used: false });
+            }
         });
 
         gameState.pyramid = [];
+        // Pyramid: Start with the base (e.g., 4 cards) and go up to the top (1 card)
         for (let i = gameState.settings.levels; i >= 1; i--) {
             const row = [];
             for (let j = 0; j < i; j++) {
@@ -1181,6 +1598,8 @@ io.on('connection', (socket) => {
         gameState.pendingActions = [];
         gameState.drinksThisRound = {}; // Reset drinks counter
         gameState.actionLog = []; // Clear the action log for the new round
+        
+        // RESET: Allow players to use their 2 cards again for this new pyramid card
         Object.values(gameState.playerHands).forEach(hand => {
             hand.forEach(card => card.used = false);
         });
@@ -1207,7 +1626,9 @@ io.on('connection', (socket) => {
         let gameState = await db.getGameState(roomId);
         if (!gameState) return;
 
-        if (gameState.playersFinishedThisRound.length >= gameState.players.length) {
+        // (clon) cuentan solo los que están y tienen cartas (quien entra a mitad o se ha ido no bloquea la ronda)
+        const inRound = gameState.players.filter(p => gameState.playerHands && gameState.playerHands[p.uuid]);
+        if (inRound.every(p => gameState.playersFinishedThisRound.includes(p.uuid))) {
             // Emit the state one last time to hide buttons for the last player
             io.to(roomId).emit('roomState', getSanitizedGameState(gameState));
 
@@ -1230,8 +1651,6 @@ io.on('connection', (socket) => {
         if (!sender || gameState.playersFinishedThisRound.includes(sender.uuid)) return;
 
         const senderHand = gameState.playerHands[sender.uuid];
-        const usedCardsCount = senderHand.filter(c => c.used).length;
-        if (usedCardsCount >= 2) return; // Already used all cards
 
         const target = gameState.players.find(p => p.uuid === targetPlayerUuid);
         if (!target || !senderHand || senderHand[handCardIndex].used) return;
@@ -1255,36 +1674,45 @@ io.on('connection', (socket) => {
         if (!target || target.id !== socket.id) return;
 
         const sender = gameState.players.find(p => p.uuid === action.sender.uuid);
-        const pyramidCard = gameState.pyramid.flat()[gameState.currentCardIndex - 1].card;
-        const level = gameState.pyramid.findIndex(row => row.some(c => c.card === pyramidCard)) + 1;
+        const flatPyramid = gameState.pyramid.flat();
+        const pyramidCardWrapper = flatPyramid[gameState.currentCardIndex - 1];
+        const pyramidCard = pyramidCardWrapper.card;
+        
+        // Fix level calculation: find which row contains the current card
+        let level = 1;
+        for (let i = 0; i < gameState.pyramid.length; i++) {
+            if (gameState.pyramid[i].includes(pyramidCardWrapper)) {
+                level = i + 1;
+                break;
+            }
+        }
         
         let drinks = 0;
         let drinkerUuid = null;
-        let drinkerName = null;
         let toastMessage = '';
 
         if (resolution === 'accept') {
             drinks = level;
             drinkerUuid = target.uuid;
-            drinkerName = target.name;
-            toastMessage = `${target.name} acepta y bebe ${drinks} trago(s).`;
+            toastMessage = `¡${target.name} acepta y bebe ${drinks} trago(s)!`;
             gameState.actionLog.push(toastMessage);
         } else if (resolution === 'challenge') {
             const senderCard = gameState.playerHands[sender.uuid][action.handCardIndex].card;
             const senderCardName = `${senderCard.number} de ${senderCard.suit}`;
-            gameState.actionLog.push(`${target.name} desafía! La carta de ${sender.name} era un ${senderCardName}.`);
-            drinks = level * 2;
-            if (senderCard.suit === pyramidCard.suit) {
+            gameState.actionLog.push(`¡${target.name} desafía! ${sender.name} enseña un ${senderCardName}.`);
+            
+            if (senderCard.number === pyramidCard.number) {
+                // Sender was telling the truth
+                drinks = level * 2;
                 drinkerUuid = target.uuid;
-                drinkerName = target.name;
-                toastMessage = `¡Desafío perdido! ${target.name} bebe ${drinks} tragos.`;
-                gameState.actionLog.push(toastMessage);
+                toastMessage = `¡Desafío fallido! ${target.name} bebe ${drinks} tragos.`;
             } else {
+                // Sender was lying
+                drinks = level * 2;
                 drinkerUuid = sender.uuid;
-                drinkerName = sender.name;
-                toastMessage = `¡Desafío ganado! ${sender.name} bebe ${drinks} tragos.`;
-                gameState.actionLog.push(toastMessage);
+                toastMessage = `¡Cazado! ${sender.name} mentía y bebe ${drinks} tragos.`;
             }
+            gameState.actionLog.push(toastMessage);
         }
 
         if (drinkerUuid) {
@@ -1340,6 +1768,8 @@ io.on('connection', (socket) => {
         await db.updateGameState(roomId, gameState);
         await checkIfRoundIsOver(roomId);
     });
+
+    pyramidRoundCheck = checkIfRoundIsOver;
 
     async function checkIfTurnIsOver(roomId) {
         let gameState = await db.getGameState(roomId);
@@ -1467,9 +1897,19 @@ io.on('connection', (socket) => {
             stateToSend.roomAdminId = room.creatorId;
             io.to(roomId).emit('roomState', stateToSend);
         } else if (gameType === 'autobus') {
-            const originalPlayers = gameState.players.map(p => ({ uuid: p.uuid, name: p.name, id: p.id }));
+            const currentPlayers = gameState.players;
             gameState = createAutobusState();
-            gameState.players = originalPlayers.map(p => ({ ...p, totalDrinks: 0 })); // Reset total drinks
+            gameState.players = currentPlayers.map(p => ({ 
+                uuid: p.uuid, 
+                name: p.name, 
+                id: p.id,
+                online: p.online !== undefined ? p.online : true,
+                totalDrinks: 0,
+                currentCards: [],
+                hasWon: false,
+                message: '',
+                drinksToTake: 0
+            }));
             
             await db.updateGameState(roomId, gameState);
             const stateToSend = getSanitizedGameState(gameState);
@@ -1637,67 +2077,27 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnecting', async () => {
+        // (clon) Antes se echaba al jugador al instante: al recargar la página perdía
+        // sus cartas, tragos, apuestas y hasta descuadraba el turno. Ahora se marca
+        // como desconectado y solo se le quita si no vuelve en PLAYER_GRACE_SECONDS.
         for (const roomId of socket.rooms) {
-            if (roomId === socket.id) continue; // Skip the socket's own ID room
-
-            const room = await db.getRoomById(roomId);
-            if (!room) continue;
-
-            let gameState = await db.getGameState(roomId);
-            if (!gameState || !gameState.players) continue;
-
-            if (room.gameType === 'imitador') {
+            if (roomId === socket.id) continue;
+            try {
+                const room = await db.getRoomById(roomId);
+                if (!room) continue;
+                let gameState = await db.getGameState(roomId);
+                if (!gameState || !gameState.players) continue;
                 const player = gameState.players.find(p => p.id === socket.id);
-                if (player) {
-                    player.online = false;
-                    await db.updateGameState(roomId, gameState);
-                    console.log(`[Server] Player ${player.name} (${player.uuid}) marked as offline in Imitador room ${roomId}`);
-
-                    // Check if ALL players are offline to schedule cleanup
-                    const allOffline = gameState.players.every(p => p.online === false);
-                    if (allOffline) {
-                        console.log(`[Server] Sala Imitador ${roomId} vacía (todos offline). Programando borrado en 2 minutos.`);
-                        activeGameIntervals[`deleteTimer_${roomId}`] = setTimeout(async () => {
-                             let currentGameState = await db.getGameState(roomId);
-                             // Re-check all offline
-                             if (currentGameState && currentGameState.players.every(p => p.online === false)) {
-                                 console.log(`[Server] Borrando sala Imitador vacía: ${roomId}`);
-                                 await db.deleteGameState(roomId);
-                                 await db.deleteRoom(roomId);
-                                 io.emit('roomListUpdate');
-                             }
-                             delete activeGameIntervals[`deleteTimer_${roomId}`];
-                        }, 2 * 60 * 1000);
-                    }
-                }
-                continue; // Skip removal for imitador
-            }
-
-            const initialPlayerCount = gameState.players.length;
-            gameState.players = gameState.players.filter(p => p.id !== socket.id);
-
-            if (gameState.players.length !== initialPlayerCount) { // Only update if a player was actually removed
+                if (!player) continue;
+                player.online = false;
                 await db.updateGameState(roomId, gameState);
-                console.log(`[Server] Usuario ${socket.id} ha salido de la sala ${roomId}. Jugadores restantes: ${gameState.players.length}`);
-
-                if (gameState.players.length === 0) {
-                    console.log(`[Server] La sala ${roomId} está vacía. Programando borrado en 2 minutos.`);
-                    // Store the timeout ID in a temporary in-memory map
-                    activeGameIntervals[`deleteTimer_${roomId}`] = setTimeout(async () => {
-                        let currentGameState = await db.getGameState(roomId);
-                        if (currentGameState && currentGameState.players.length === 0) {
-                            console.log(`[Server] Borrando sala vacía: ${roomId}`);
-                            await db.deleteGameState(roomId);
-                            await db.deleteRoom(roomId);
-                            io.emit('roomListUpdate'); // A generic event to trigger a refresh
-                        }
-                        delete activeGameIntervals[`deleteTimer_${roomId}`]; // Clear timeout from map
-                    }, 2 * 60 * 1000); // 2 minutes
-                } else {
-                    const stateToSend = getSanitizedGameState(gameState);
-                    stateToSend.roomAdminId = room.creatorId;
-                    io.to(roomId).emit('roomState', stateToSend);
-                }
+                console.log(`[Server] ${player.name} (${player.uuid}) se ha desconectado de ${roomId}. Margen de ${PLAYER_GRACE_SECONDS}s para volver.`);
+                const stateToSend = getSanitizedGameState(gameState);
+                stateToSend.roomAdminId = room.creatorId;
+                io.to(roomId).emit('roomState', stateToSend);
+                if (room.gameType !== 'imitador') schedulePlayerRemoval(roomId, player.uuid, socket.id);
+            } catch (err) {
+                console.error('[Server] Error al desconectar:', err.message);
             }
         }
     });
@@ -1801,7 +2201,7 @@ io.on('connection', (socket) => {
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         if (currentPlayer.uuid !== userId) return; // Not current player's turn
 
-        const drawnCard = gameState.deck.pop();
+        const drawnCard = drawAutobusCard(gameState);
         gameState.currentCard = drawnCard;
 
         const isRed = drawnCard.suit === 'hearts' || drawnCard.suit === 'diamonds';
@@ -1857,11 +2257,19 @@ io.on('connection', (socket) => {
         if (!gameState || gameState.phase !== 'higher-or-lower') return;
 
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        if (currentPlayer.uuid !== userId) return; // Not current player's turn
-        if (currentPlayer.currentCards.length === 0) return; // Should have at least one card from previous round
+        if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
+        
+        // Safety check for cards
+        if (!currentPlayer.currentCards) currentPlayer.currentCards = [];
+        if (currentPlayer.currentCards.length === 0) {
+            console.log(`[Server] Player ${userId} has no cards in higher-or-lower phase. Recovery needed.`);
+            // If they have no cards, we might need to give them one or skip
+            return;
+        }
 
         const lastCard = currentPlayer.currentCards[currentPlayer.currentCards.length - 1];
-        const drawnCard = gameState.deck.pop();
+        const drawnCard = drawAutobusCard(gameState);
+        if (!drawnCard) return; // Deck empty case
         gameState.currentCard = drawnCard;
 
         const rankValues = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14};
@@ -1925,12 +2333,17 @@ io.on('connection', (socket) => {
         if (!gameState || gameState.phase !== 'inside-or-outside') return;
 
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        if (currentPlayer.uuid !== userId) return; // Not current player's turn
-        if (currentPlayer.currentCards.length < 2) return; // Should have at least two cards from previous rounds
+        if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
+        
+        if (!currentPlayer.currentCards) currentPlayer.currentCards = [];
+        if (currentPlayer.currentCards.length < 2) {
+            console.log(`[Server] Player ${userId} has insufficient cards for inside-or-outside phase.`);
+            return;
+        }
 
         const card1 = currentPlayer.currentCards[0];
         const card2 = currentPlayer.currentCards[1];
-        const drawnCard = gameState.deck.pop();
+        const drawnCard = drawAutobusCard(gameState);
         gameState.currentCard = drawnCard;
 
         const rankValues = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14};
@@ -1998,10 +2411,15 @@ io.on('connection', (socket) => {
         if (!gameState || gameState.phase !== 'suit-guess') return;
 
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        if (currentPlayer.uuid !== userId) return; // Not current player's turn
-        if (currentPlayer.currentCards.length < 3) return; // Should have at least three cards from previous rounds
+        if (!currentPlayer || currentPlayer.uuid !== userId) return; // Not current player's turn
+        
+        if (!currentPlayer.currentCards) currentPlayer.currentCards = [];
+        if (currentPlayer.currentCards.length < 3) {
+            console.log(`[Server] Player ${userId} has insufficient cards for suit-guess phase.`);
+            return;
+        }
 
-        const drawnCard = gameState.deck.pop();
+        const drawnCard = drawAutobusCard(gameState);
         gameState.currentCard = drawnCard;
 
         let correctGuess = false;
@@ -2061,8 +2479,8 @@ io.on('connection', (socket) => {
         let gameState = await db.getGameState(roomId);
         if (!gameState) return; // Allow if 'waiting' OR 'playing'
 
-        if (gameState.players.length < 2) {
-            // Should probably emit error, but UI handles this check too
+        if (gameState.players.length < 4) {
+            // UI already prevents this, but server-side check for safety
             return;
         }
 
@@ -2110,5 +2528,404 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('roomState', stateToSend);
     });
 
-    socket.on('disconnect', () => console.log(`[Server] Usuario desconectado: ${socket.id}`));
+    socket.on('bolita:startGame', async ({ roomId, userId }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room || room.creatorId !== userId) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState || gameState.phase !== 'waiting' || gameState.players.length === 0) return;
+
+        console.log(`[Server] Iniciando La Bolita en la sala ${roomId}`);
+
+        // 1. Reorder players randomly
+        gameState.turnOrder = gameState.players.map(p => p.uuid).sort(() => Math.random() - 0.5);
+        gameState.currentPlayerIndex = 0;
+
+        // 2. Generate round obstacles and prizes
+        regenerateBolitaRound(gameState);
+        gameState.phase = 'playing';
+
+        await db.updateGameState(roomId, gameState);
+        const stateToSend = getSanitizedGameState(gameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+    });
+
+    socket.on('bolita:dropBall', async ({ roomId, userId, startX }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState || gameState.phase !== 'playing') return;
+
+        // Verify turn
+        const currentPlayerUuid = gameState.turnOrder[gameState.currentPlayerIndex];
+        if (currentPlayerUuid !== userId) return;
+
+        // Verify ball is not dropping
+        if (gameState.ballState.dropping) return;
+
+        console.log(`[Server] Drop ball in Room ${roomId} at X=${startX} by User ${userId}`);
+
+        // 1. Run physics simulation to get path and landing hole
+        const { path, finalHole } = simulateBallDrop(startX, gameState.pegs);
+        const reward = gameState.prizes[finalHole];
+
+        gameState.ballState = {
+            dropping: true,
+            path: path,
+            startX: startX,
+            finalHole: finalHole,
+            reward: reward
+        };
+
+        await db.updateGameState(roomId, gameState);
+        let stateToSend = getSanitizedGameState(gameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+
+        // 2. Clear any existing timer for this room
+        if (activeGameIntervals[roomId]) {
+            clearTimeout(activeGameIntervals[roomId]);
+        }
+
+        // 3. Set a timer to transition turn after ball lands and reward modal completes
+        const animationTime = path.length * 16.67;
+        const rewardDisplayTime = 3000;
+        const totalDuration = animationTime + rewardDisplayTime;
+
+        activeGameIntervals[roomId] = setTimeout(async () => {
+            delete activeGameIntervals[roomId];
+            
+            let updatedGameState = await db.getGameState(roomId);
+            if (!updatedGameState || updatedGameState.phase !== 'playing') return;
+
+            const player = updatedGameState.players.find(p => p.uuid === currentPlayerUuid);
+
+            // Record last action
+            updatedGameState.lastAction = {
+                playerName: player ? player.name : 'Jugador',
+                reward: updatedGameState.ballState.reward
+            };
+
+            // Advance turn
+            updatedGameState.currentPlayerIndex = (updatedGameState.currentPlayerIndex + 1) % updatedGameState.turnOrder.length;
+
+            // Generate new board pegs & prizes for next turn
+            regenerateBolitaRound(updatedGameState);
+
+            await db.updateGameState(roomId, updatedGameState);
+            let nextStateToSend = getSanitizedGameState(updatedGameState);
+            nextStateToSend.roomAdminId = room.creatorId;
+            io.to(roomId).emit('roomState', nextStateToSend);
+        }, totalDuration);
+    });
+
+    socket.on('bolita:resetGame', async ({ roomId, userId }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room || room.creatorId !== userId) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState) return;
+
+        console.log(`[Server] Reiniciando La Bolita en la sala ${roomId}`);
+
+        if (activeGameIntervals[roomId]) {
+            clearTimeout(activeGameIntervals[roomId]);
+            delete activeGameIntervals[roomId];
+        }
+
+        const originalSettings = gameState.settings;
+        const originalPlayers = gameState.players;
+
+        let newGameState = createBolitaState(originalSettings);
+        newGameState.players = originalPlayers;
+
+        await db.updateGameState(roomId, newGameState);
+        const stateToSend = getSanitizedGameState(newGameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+    });
+
+    socket.on('cofres:startGame', async ({ roomId, userId }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room || room.creatorId !== userId) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState || gameState.phase !== 'waiting' || gameState.players.length === 0) return;
+
+        console.log(`[Server] Iniciando Cofres del Tesoro en la sala ${roomId}`);
+        
+        // 1. Reorder players randomly
+        gameState.turnOrder = gameState.players.map(p => p.uuid).sort(() => Math.random() - 0.5);
+        gameState.currentPlayerIndex = 0;
+        
+        // 2. Generate chests
+        const numChests = gameState.settings.numChests;
+        
+        const prizeTypes = [
+            ...[1, 2, 3, 4, 5].map(n => ({ type: 'BEBE', value: n })),
+            ...[1, 2, 3, 4, 5].map(n => ({ type: 'REPARTE', value: n })),
+            { type: 'ACABATE' },
+            { type: 'MANDA_ACABAR' }
+        ];
+
+        const rewards = [];
+        for (let i = 0; i < numChests; i++) {
+            rewards.push(prizeTypes[Math.floor(Math.random() * prizeTypes.length)]);
+        }
+        
+        const chests = [];
+        const goldenCount = Math.floor(Math.random() * 2) + 1; // 1 or 2
+        const largeCount = 2; // Fixed 2 large chests
+        const normalCount = Math.max(0, numChests - goldenCount - largeCount);
+
+        for (let i = 0; i < normalCount; i++) chests.push({ type: 'normal' });
+        for (let i = 0; i < largeCount; i++) chests.push({ type: 'large' });
+        for (let i = 0; i < goldenCount; i++) chests.push({ type: 'golden' });
+
+        // Shuffle chests
+        chests.sort(() => Math.random() - 0.5);
+
+        // Position chests in a 0-100 normalized space
+        const placed = [];
+        for (let i = 0; i < chests.length; i++) {
+            const chest = chests[i];
+            chest.reward = rewards[i] || prizeTypes[0];
+            chest.opened = false;
+            chest.id = i;
+
+            // Normalized sizes (approx % of container)
+            const size = (chest.type === 'large') ? 14 : 10;
+            const buffer = 2;
+
+            let found = false;
+            let attempts = 0;
+            while (!found && attempts < 1000) {
+                const x = Math.random() * (100 - size - 4) + 2;
+                const y = Math.random() * (100 - size - 4) + 2;
+
+                const collision = placed.some(p => {
+                    return !(x + size + buffer < p.x ||
+                             x > p.x + p.size + buffer ||
+                             y + size + buffer < p.y ||
+                             y > p.y + p.size + buffer);
+                });
+
+                if (!collision) {
+                    chest.x = x;
+                    chest.y = y;
+                    chest.size = size;
+                    placed.push({ x, y, size });
+                    found = true;
+                }
+                attempts++;
+            }
+            // If not found after 1000 attempts, just place it (should be rare with 15-50 chests)
+            if (!found) {
+                chest.x = Math.random() * 80 + 10;
+                chest.y = Math.random() * 80 + 10;
+            }
+        }
+
+        gameState.chests = chests;
+        gameState.phase = 'playing';
+
+        await db.updateGameState(roomId, gameState);
+        const stateToSend = getSanitizedGameState(gameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+    });
+
+    socket.on('cofres:openChest', async ({ roomId, userId, chestId }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState || gameState.phase !== 'playing') return;
+
+        const currentPlayerUuid = gameState.turnOrder[gameState.currentPlayerIndex];
+        if (currentPlayerUuid !== userId) return;
+
+        const chest = gameState.chests.find(c => c.id === chestId);
+        if (!chest || chest.opened) return;
+
+        chest.opened = true;
+        const player = gameState.players.find(p => p.uuid === userId);
+        gameState.lastAction = {
+            playerName: player.name,
+            reward: chest.reward,
+            chestType: chest.type
+        };
+
+        const allOpened = gameState.chests.every(c => c.opened);
+        if (allOpened) {
+            gameState.phase = 'finished';
+        } else {
+            gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.turnOrder.length;
+        }
+
+        await db.updateGameState(roomId, gameState);
+        const stateToSend = getSanitizedGameState(gameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+    });
+
+    socket.on('cofres:resetGame', async ({ roomId, userId }) => {
+        const room = await db.getRoomById(roomId);
+        if (!room || room.creatorId !== userId) return;
+        let gameState = await db.getGameState(roomId);
+        if (!gameState) return;
+
+        const originalSettings = gameState.settings;
+        const originalPlayers = gameState.players;
+
+        let newGameState = createCofresState(originalSettings);
+        newGameState.players = originalPlayers;
+
+        await db.updateGameState(roomId, newGameState);
+        const stateToSend = getSanitizedGameState(newGameState);
+        stateToSend.roomAdminId = room.creatorId;
+        io.to(roomId).emit('roomState', stateToSend);
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[Server] Usuario desconectado: ${socket.id}`);
+    });
 });
+
+// Intervalo de actualización periódica de usuarios activos para el Dashboard (cada 3 segundos)
+setInterval(async () => {
+    try {
+        const dashboardRoom = io.sockets.adapter.rooms.get('analytics_dashboard');
+        if (dashboardRoom && dashboardRoom.size > 0) {
+            const active = await analyticsDb.getActiveUsers(db.pool);
+            io.to('analytics_dashboard').emit('analytics:active_count', active.count);
+        }
+    } catch (err) {
+        // Silenciar errores en segundo plano
+    }
+}, 3000);
+// =====================================================================
+// (clon) Limpieza de salas vacías.
+// Cada 30 s se mira cuánta gente hay CONECTADA de verdad en cada sala (sockets),
+// no la lista de jugadores (que puede quedarse con gente desconectada).
+// Si una sala lleva ROOM_EMPTY_MINUTES (por defecto 2) sin nadie, se borra
+// junto con su estado y se paran sus temporizadores. Cubre también salas creadas
+// a las que nunca entró nadie, que antes se quedaban para siempre en la lista.
+// =====================================================================
+const ROOM_EMPTY_MINUTES = Number(process.env.ROOM_EMPTY_MINUTES) || 2;
+const roomEmptySince = {};
+async function deleteRoomCompletely(roomId) {
+    [activeGameIntervals[roomId], lamenteTimeouts[roomId], activeGameIntervals[`deleteTimer_${roomId}`]].forEach(t => { if (t) { clearTimeout(t); clearInterval(t); } });
+    delete activeGameIntervals[roomId]; delete lamenteTimeouts[roomId]; delete activeGameIntervals[`deleteTimer_${roomId}`];
+    await db.deleteGameState(roomId);
+    await db.deleteRoom(roomId);
+    io.emit('roomListUpdate');
+}
+setInterval(async () => {
+    try {
+        const rooms = await db.getAllRooms();
+        const now = Date.now();
+        const alive = new Set();
+        for (const room of rooms) {
+            alive.add(room.id);
+            const sockets = io.sockets.adapter.rooms.get(room.id);
+            if (sockets && sockets.size > 0) { delete roomEmptySince[room.id]; continue; }
+            if (!roomEmptySince[room.id]) { roomEmptySince[room.id] = now; continue; }
+            if (now - roomEmptySince[room.id] >= ROOM_EMPTY_MINUTES * 60 * 1000) {
+                console.log(`[Server] Sala ${room.id} (${room.gameType}) vacía ${ROOM_EMPTY_MINUTES} min: se borra.`);
+                delete roomEmptySince[room.id];
+                await deleteRoomCompletely(room.id);
+            }
+        }
+        for (const id in roomEmptySince) if (!alive.has(id)) delete roomEmptySince[id];
+    } catch (err) {
+        console.error('[Server] Error limpiando salas vacías:', err.message);
+    }
+}, 30 * 1000);
+
+// (clon) red de seguridad: un error dentro de un evento de socket no debe tumbar el servidor entero (y todas las salas)
+process.on('unhandledRejection', (err) => {
+    console.error('[Server] Error no controlado (la partida sigue):', err && err.stack || err);
+});
+
+// =====================================================================
+// (clon) Jugadores que se desconectan
+// =====================================================================
+const PLAYER_GRACE_SECONDS = Number(process.env.PLAYER_GRACE_SECONDS) || 30;
+const pendingRemovals = {};
+let pyramidRoundCheck = null; // se asigna dentro de io.on (usa la misma lógica de fin de ronda)
+
+function cancelPendingRemoval(roomId, uuid) {
+    const key = `${roomId}:${uuid}`;
+    if (pendingRemovals[key]) { clearTimeout(pendingRemovals[key]); delete pendingRemovals[key]; }
+}
+
+function schedulePlayerRemoval(roomId, uuid, socketId) {
+    cancelPendingRemoval(roomId, uuid);
+    const key = `${roomId}:${uuid}`;
+    pendingRemovals[key] = setTimeout(async () => {
+        delete pendingRemovals[key];
+        try {
+            const room = await db.getRoomById(roomId);
+            const gameState = room && await db.getGameState(roomId);
+            if (!gameState || !gameState.players) return;
+            const player = gameState.players.find(p => p.uuid === uuid);
+            // Ha vuelto (otro socket) o ya no está: nada que hacer
+            if (!player || player.online !== false || player.id !== socketId) return;
+            // La bolita está cayendo: esperar a que termine la tirada
+            if (gameState.ballState && gameState.ballState.dropping) return schedulePlayerRemoval(roomId, uuid, socketId);
+            removePlayerFromState(gameState, uuid);
+            await db.updateGameState(roomId, gameState);
+            if (gameState.game === 'pyramid' && gameState.phase === 'playing' && gameState.players.length && pyramidRoundCheck) {
+                await pyramidRoundCheck(roomId);
+            }
+            console.log(`[Server] ${player.name} no ha vuelto a ${roomId}: sale de la partida. Quedan ${gameState.players.length}.`);
+            const stateToSend = getSanitizedGameState(gameState);
+            stateToSend.roomAdminId = room.creatorId;
+            io.to(roomId).emit('roomState', stateToSend);
+        } catch (err) {
+            console.error('[Server] Error quitando jugador:', err.message);
+        }
+    }, PLAYER_GRACE_SECONDS * 1000);
+}
+
+// Quita al jugador y deja el turno bien puesto (antes podía quedarse apuntando a nadie y la partida se colgaba)
+function removePlayerFromState(gs, uuid) {
+    const idx = gs.players.findIndex(p => p.uuid === uuid);
+    if (idx === -1) return false;
+    const playing = gs.phase && gs.phase !== 'waiting' && gs.phase !== 'finished';
+    gs.players.splice(idx, 1);
+    if (gs.game === 'autobus') {
+        if (!gs.players.length) { gs.currentPlayerIndex = 0; return true; }
+        if (idx < gs.currentPlayerIndex) {
+            gs.currentPlayerIndex--;
+        } else if (idx === gs.currentPlayerIndex) {
+            gs.currentPlayerIndex = gs.currentPlayerIndex % gs.players.length;
+            if (playing) {
+                let tries = 0;
+                while (gs.players[gs.currentPlayerIndex].hasWon && tries++ < gs.players.length) {
+                    gs.currentPlayerIndex = (gs.currentPlayerIndex + 1) % gs.players.length;
+                }
+                const next = gs.players[gs.currentPlayerIndex];
+                next.currentCards = []; next.message = '';
+                gs.currentCard = null;
+                gs.phase = 'red-or-black';
+            }
+        }
+        if (playing && gs.players.every(p => p.hasWon)) gs.phase = 'finished';
+    } else if (Array.isArray(gs.turnOrder)) {
+        const t = gs.turnOrder.indexOf(uuid);
+        if (t !== -1) {
+            gs.turnOrder.splice(t, 1);
+            if (!gs.turnOrder.length) gs.currentPlayerIndex = 0;
+            else {
+                if (t < gs.currentPlayerIndex) gs.currentPlayerIndex--;
+                gs.currentPlayerIndex = gs.currentPlayerIndex % gs.turnOrder.length;
+            }
+        }
+    }
+    return true;
+}
+
+// El Autobús: si se acaba la baraja se vuelve a barajar (antes el servidor fallaba al robar de un mazo vacío)
+function drawAutobusCard(gs) {
+    if (!gs.deck || !gs.deck.length) gs.deck = shuffleDeck(createPokerDeck());
+    return gs.deck.pop();
+}

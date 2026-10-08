@@ -1,76 +1,68 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crear Votación</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
-    <script async src="https.pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
-     crossorigin="anonymous"></script>
-    <style>
-        body { background-color: var(--bg-dark); color: var(--text-light); }
-        .container { max-width: 700px; }
-        .card { background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .option-input-group { display: flex; gap: 10px; margin-bottom: 10px; }
-        .option-input-group input { flex-grow: 1; }
-    </style>
+    <%- include('partials/head', { ads: true }) %>
+    <title><%= title %></title>
+    <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'Crea tu propia sala de juegos beber online.' %>">
+    <link rel="stylesheet" href="/css/admin.css">
 </head>
-<body class="bg-dark text-light">
-    <%- include('partials/header') %>
-    <div class="admin-wrapper">
-        <div class="container mt-5 mb-5">
-        <div class="card shadow">
-            <div class="card-header">
-                <h1>Crear Nueva Votación</h1>
-            </div>
-            <div class="card-body">
-                <form id="create-voting-form">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Título de la Votación</label>
-                        <input type="text" class="form-control" id="name" placeholder="¿Quién es el más...?" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Contraseña</label>
-                        <input type="password" class="form-control" id="password" placeholder="(Dejar en blanco para sala pública)">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Opciones de Voto</label>
-                        <div id="options-container">
-                            <div class="option-input-group">
-                                <input type="text" class="form-control" name="options" required>
-                                <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
-                            </div>
-                            <div class="option-input-group">
-                                <input type="text" class="form-control" name="options" required>
-                                <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
-                            </div>
-                        </div>
-                        <button type="button" id="add-option-btn" class="btn btn-secondary btn-sm mt-2">+ Añadir Opción</button>
-                    </div>
-                    <div class="mb-3">
-                        <label for="duration" class="form-label">Duración (segundos)</label>
-                        <input type="number" class="form-control" id="duration" value="60" min="1" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">Crear Sala de Votación</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<body class="admin-page">
+    <%- include('partials/topbar', { back: '/rooms/voting', backLabel: 'Volver a las salas' }) %>
 
-        <div class="mt-5">
+    <main class="admin-main">
+        <header class="admin-head">
+            <h1 class="tp-rise">Nueva votación</h1>
+            <p class="tp-rise" style="--i:1">Escribe la pregunta y las opciones. Todos votan en secreto y al acabar el tiempo se ve el resultado.</p>
+        </header>
+
+        <form id="create-voting-form" class="admin-form tp-panel tp-rise" style="--i:2" novalidate>
+            <div class="tp-field">
+                <label class="tp-label" for="name">Pregunta</label>
+                <input class="tp-input" type="text" id="name" placeholder="¿Quién es más probable que...?" maxlength="80" required autocomplete="off">
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="password">Contraseña <span class="tp-optional">opcional</span></label>
+                <input class="tp-input" type="password" id="password" placeholder="Déjala vacía para una sala pública" autocomplete="new-password">
+            </div>
+            <div class="tp-field">
+                <span class="tp-label" id="options-label">Opciones</span>
+                <div id="options-container" class="options-editor" aria-labelledby="options-label">
+                    <div class="option-input-group">
+                        <input type="text" class="tp-input" name="options" placeholder="Opción 1" maxlength="60" required>
+                        <button type="button" class="remove-option-btn" aria-label="Quitar opción"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="option-input-group">
+                        <input type="text" class="tp-input" name="options" placeholder="Opción 2" maxlength="60" required>
+                        <button type="button" class="remove-option-btn" aria-label="Quitar opción"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+                <button type="button" id="add-option-btn" class="tp-btn tp-btn--ghost tp-btn--sm add-option"><i class="bi bi-plus-lg"></i> Añadir opción</button>
+                <span class="tp-hint">Pulsa Intro para saltar a la siguiente opción.</span>
+            </div>
+            <div class="tp-field">
+                <label class="tp-label" for="duration">Tiempo para votar (s)</label>
+                <div class="tp-stepper">
+                    <button type="button" data-step="-1" aria-label="Menos">−</button>
+                    <input class="tp-input" type="number" inputmode="numeric" id="duration" value="60" min="1" step="5" required>
+                    <button type="button" data-step="1" aria-label="Más">+</button>
+                </div>
+            </div>
+            <button type="submit" class="tp-btn tp-btn--block admin-submit">Crear votación <i class="bi bi-arrow-right"></i></button>
+        </form>
+
+        <section class="admin-rules tp-rise" style="--i:3">
             <%- include('partials/game_rules', { gameType: 'voting' }) %>
-        </div>
-    </div>
-</div>
+        </section>
+    </main>
 
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
+    <%- include('partials/footer') %>
+    <script src="/js/create-room.js"></script>
     <script>
         const gameType = 'voting';
+
+        function showToast(message) {
+            tpToast(message, { error: true });
+        }
 
         // Function to attach keydown listener to option inputs
         function attachKeydownListenerToOptions(inputElement) {
@@ -116,8 +108,8 @@
                 const newOption = document.createElement('div');
                 newOption.className = 'option-input-group';
                 newOption.innerHTML = `
-                    <input type="text" class="form-control" name="options" required>
-                    <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                    <input type="text" class="tp-input" name="options" placeholder="Otra opción" maxlength="60" required>
+                    <button type="button" class="remove-option-btn" aria-label="Quitar opción"><i class="bi bi-x-lg"></i></button>
                 `;
                 container.appendChild(newOption);
                 
@@ -128,17 +120,37 @@
             });
 
             document.getElementById('options-container').addEventListener('click', (e) => {
-                if (e.target.classList.contains('remove-option-btn')) {
+                const rm = e.target.closest('.remove-option-btn');
+                if (rm) {
                     if (document.getElementsByName('options').length > 2) {
-                        e.target.closest('.option-input-group').remove();
+                        const g = rm.closest('.option-input-group'); g.classList.add('is-leaving'); setTimeout(() => g.remove(), 180);
                     } else {
-                        alert('Debe haber al menos dos opciones.');
+                        showToast('Debe haber al menos dos opciones.');
                     }
                 }
             });
 
             document.getElementById('create-voting-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
+
+                const nameInput = document.getElementById('name');
+                if (!nameInput.value.trim()) {
+                    showToast("Falta el título de la votación");
+                    nameInput.focus();
+                    return;
+                }
+
+                const optionsInputs = Array.from(document.getElementsByName('options'));
+                let hasEmptyOption = false;
+                for (let input of optionsInputs) {
+                    if (!input.value.trim()) {
+                        showToast("Falta rellenar una de las opciones");
+                        input.focus();
+                        hasEmptyOption = true;
+                        break;
+                    }
+                }
+                if (hasEmptyOption) return;
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const updateRoomId = urlParams.get('update_room_id');
@@ -152,9 +164,10 @@
                     localStorage.setItem('userUUID', userUUID);
                 }
 
-                const options = Array.from(document.getElementsByName('options')).map(input => input.value).filter(val => val.trim() !== '');
+                const options = optionsInputs.map(input => input.value).filter(val => val.trim() !== '');
                 if (options.length < 2) {
-                    return alert('Debes proporcionar al menos dos opciones válidas.');
+                    showToast('Debes proporcionar al menos dos opciones válidas.');
+                    return;
                 }
 
                 const payload = {
@@ -181,7 +194,7 @@
                     const { roomId } = await response.json();
                     window.location.href = `/game/${gameType}/${roomId}`;
                 } else {
-                    alert('Error al crear la sala de votación.');
+                    showToast('No se pudo crear la votación. Inténtalo de nuevo.');
                 }
             });
 
@@ -202,8 +215,8 @@
                         const newOption = document.createElement('div');
                         newOption.className = 'option-input-group';
                         newOption.innerHTML = `
-                            <input type="text" class="form-control" name="options" value="${escapeHTML(optionText)}" required>
-                            <button type="button" class="btn btn-danger btn-sm remove-option-btn">X</button>
+                            <input type="text" class="tp-input" name="options" value="${escapeHTML(optionText)}" maxlength="60" required>
+                            <button type="button" class="remove-option-btn" aria-label="Quitar opción"><i class="bi bi-x-lg"></i></button>
                         `;
                         optionsContainer.appendChild(newOption);
                         attachKeydownListenerToOptions(newOption.querySelector('input[name="options"]'));
@@ -223,5 +236,6 @@
             return div.innerHTML;
         }
     </script>
+    <%- include('partials/analytics') %>
 </body>
 </html>

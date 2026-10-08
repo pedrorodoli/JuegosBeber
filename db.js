@@ -12,8 +12,25 @@ const pool = mysql.createPool({
 });
 
 // Function to initialize the database schema
+// (clon) crea la base de datos propia del clon si no existe, para no compartir la del original
+async function ensureDatabaseExists() {
+    const dbName = process.env.DB_NAME || 'juegosbeber';
+    try {
+        const conn = await mysql.createConnection({
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'root',
+            password: process.env.DB_PASSWORD || 'password'
+        });
+        await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName.replace(/`/g, '')}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+        await conn.end();
+    } catch (err) {
+        console.warn(`[DB] No se pudo crear la base de datos "${dbName}" automáticamente: ${err.message}`);
+    }
+}
+
 async function initializeDatabase() {
     try {
+        await ensureDatabaseExists();
         const connection = await pool.getConnection();
         await connection.query(`
             CREATE TABLE IF NOT EXISTS rooms (
@@ -36,6 +53,10 @@ async function initializeDatabase() {
         `);
         connection.release();
         console.log('Database schema initialized successfully.');
+        
+        // Initialize analytics tables
+        const analyticsDb = require('./analyticsDb');
+        await analyticsDb.initializeAnalytics(pool);
     } catch (error) {
         console.error('Error initializing database schema:', error);
         process.exit(1); // Exit if database cannot be initialized
@@ -102,7 +123,12 @@ async function createGameState(roomId, gameState) {
 async function getGameState(roomId) {
     const [rows] = await pool.query('SELECT state_json FROM game_states WHERE room_id = ?', [roomId]);
     if (rows.length > 0) {
-        return rows[0].state_json;
+        // (clon) MySQL devuelve el JSON ya parseado; MariaDB lo devuelve como texto
+        let state = rows[0].state_json;
+        for (let i = 0; i < 3 && typeof state === 'string'; i++) {
+            try { state = JSON.parse(state); } catch (e) { break; }
+        }
+        return state;
     }
     return null;
 }

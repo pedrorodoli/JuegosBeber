@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/toastify.min.css">
+    <link rel="stylesheet" href="/css/game.css">
+    <link rel="stylesheet" href="/css/cofres.css">
+</head>
+<body class="game cofres">
+    <%- include('partials/game_bar', { gameType: 'cofres', title: title, roomId: roomId }) %>
+
+    <div id="game-container">
+        <!-- Espera -->
+        <div id="waiting-room" class="cf-waiting">
+            <div class="cf-hero" aria-hidden="true">
+                <span class="cf-chest-art normal"></span>
+                <span class="cf-chest-art golden"></span>
+                <span class="cf-chest-art large"></span>
+            </div>
+            <h1 class="game-title">Cofres del Tesoro</h1>
+            <div class="room-info">
+                <h3>Sala <span id="display-room-name">...</span></h3>
+                <p>Esperando a que el anfitrión empiece la partida.</p>
+            </div>
+
+            <div class="players-list-container">
+                <h4>En la sala <span id="player-count" class="num">0</span></h4>
+                <ul id="players-list">
+                    <!-- Jugadores -->
+                </ul>
+            </div>
+
+            <div id="admin-controls" class="d-none">
+                <button id="start-game-btn" class="btn-custom"><i class="bi bi-play-fill"></i> Empezar partida</button>
+            </div>
+        </div>
+
+        <!-- Partida -->
+        <div id="game-board" class="d-none">
+            <div class="game-header">
+                <h2 id="turn-indicator">...</h2>
+                <div id="last-action-container" class="d-none">
+                    <span id="last-action-text"></span>
+                </div>
+            </div>
+
+            <div id="chests-grid" class="chests-grid">
+                <!-- Cofres -->
+            </div>
+
+            <div id="game-footer" class="game-footer">
+                <div id="turn-order-container">
+                    <h5>Orden de turnos</h5>
+                    <div id="turn-order-list"></div>
+                </div>
+                <div id="admin-post-game" class="d-none">
+                    <button id="reset-game-btn" class="btn-custom"><i class="bi bi-arrow-repeat"></i> Jugar otra vez</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nombre -->
+    <div id="name-modal" class="modal-overlay" style="display:none">
+        <div class="modal-content">
+            <h2>¿Cómo te llamas?</h2>
+            <p>Así te verán los demás en la partida.</p>
+            <input type="text" id="name-input" placeholder="Tu nombre pirata" maxlength="24" autocomplete="nickname" enterkeyhint="go">
+            <button id="join-game-btn" class="btn-custom">Unirme a la tripulación</button>
+        </div>
+    </div>
+
+    <!-- Premio -->
+    <div class="modal-overlay cf-reward" id="rewardModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="reward-text">
+        <div class="modal-content">
+            <div id="opened-chest-img"></div>
+            <h2 id="reward-text"></h2>
+            <p id="reward-description"></p>
+            <button type="button" class="btn-custom" data-bs-dismiss="modal">Entendido</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/toastify.min.js"></script>
+    <script src="/js/cofres.js"></script>
+    <%- include('partials/analytics') %>
+</body>
+</html>

@@ -1,0 +1,102 @@
+/* ==========================================================================
+   Partida: estructura común (barra, jugadores, mesa, dock de acciones)
+   ========================================================================== */
+html, body.game { height: 100%; }
+body.game {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+/* Barra */
+.g-bar {
+  position: sticky; top: 0; z-index: var(--z-nav);
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.5rem;
+  padding: calc(0.4rem + env(safe-area-inset-top, 0px)) 0.85rem 0.4rem 1rem;
+  background: rgba(8, 32, 26, 0.72);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.g-bar .tp-back { margin-left: -8px; }
+.g-bar-title { min-width: 0; display: grid; line-height: 1.15; }
+.g-bar-game { font: 750 1.05rem/1.1 var(--font-display); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-bar-room { font-size: 0.75rem; color: var(--muted); }
+.g-share {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 40px; padding: 0 0.85rem;
+  border: 0; border-radius: var(--r-pill); background: var(--chalk); color: var(--felt-900);
+  font: 650 0.875rem/1 var(--font-body); cursor: pointer; touch-action: manipulation;
+  transition: transform 140ms var(--ease-out), background-color 160ms ease;
+}
+.g-share:active { transform: scale(0.96); }
+@media (hover: hover) and (pointer: fine) { .g-share:hover { background: #fff; } }
+@media (max-width: 360px) { .g-share span { display: none; } }
+
+/* Tira de jugadores (scroll horizontal) */
+.g-players { padding: 0.65rem 0 0.25rem; }
+.g-players ul, .g-players ol {
+  list-style: none; margin: 0; padding: 0 1rem 0.35rem;
+  display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.g-players ul::-webkit-scrollbar { display: none; }
+.g-chip {
+  flex: none; scroll-snap-align: start;
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.3rem; border-radius: var(--r-pill);
+  background: rgba(17, 55, 44, 0.85); border: 1px solid var(--line);
+  font-size: 0.875rem; font-weight: 600; white-space: nowrap;
+  transition: background-color 240ms ease, border-color 240ms ease, transform 240ms var(--ease-out);
+}
+.g-chip .tp-avatar { width: 28px; height: 28px; border-radius: 50%; font-size: 0.72rem; }
+.g-chip .g-chip-meta { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+.g-chip.is-turn { background: var(--chalk); color: var(--felt-900); border-color: transparent; }
+.g-chip.is-turn .g-chip-meta { color: var(--felt-600); }
+.g-chip.is-turn .tp-avatar { box-shadow: 0 0 0 2px var(--felt-900); animation: tp-pulse-ring 1.6s ease-out infinite; }
+.g-chip.is-won { border-color: rgba(143, 227, 176, 0.5); color: var(--win); }
+.g-chip.is-me .g-chip-name::after { content: " (tú)"; font-weight: 500; color: var(--muted); }
+.g-chip.is-turn.is-me .g-chip-name::after { color: var(--felt-500); }
+
+/* Mesa central */
+.g-table {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 1rem 1rem 1.25rem; text-align: center;
+}
+.g-question { font: 750 clamp(1.6rem, 7vw, 2.4rem)/1.05 var(--font-display); letter-spacing: -0.035em; margin: 0 0 1.25rem; max-width: 18ch; text-wrap: balance; }
+.g-sub { color: var(--muted); margin: -0.5rem 0 1.25rem; font-size: 0.95rem; }
+
+/* Dock inferior (zona del pulgar) */
+.g-dock {
+  position: sticky; bottom: 0; z-index: 20;
+  padding: 0.85rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(8, 32, 26, 0.6), rgba(6, 24, 18, 0.96) 40%);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  text-align: center;
+}
+.g-dock-title { font: 600 0.8rem/1 var(--font-body); color: var(--muted); letter-spacing: 0.01em; margin: 0 0 0.6rem; }
+.g-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.g-actions > .btn-custom, .g-actions > .tp-btn { flex: 1 1 140px; max-width: 260px; }
+
+/* Cartas con giro 3D (compartido por juegos de cartas) */
+.flip { perspective: 900px; }
+.flip-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 620ms var(--ease-out); }
+.flip.revealed .flip-inner { transform: rotateY(180deg); }
+.flip-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: inherit; background-size: cover; background-position: center; }
+.flip-front { transform: rotateY(180deg); }
+
+/* Banner de resultado (aparece sobre la mesa) */
+.g-banner {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1rem; border-radius: var(--r-pill);
+  font-weight: 700; font-size: 1rem;
+  background: var(--chip); color: var(--chip-ink);
+  animation: tp-pop 320ms var(--ease-out) both;
+}
+.g-banner.is-good { background: var(--win); }
+
+@media (min-width: 900px) {
+  .g-dock { max-width: 720px; width: 100%; margin: 0 auto; }
+}

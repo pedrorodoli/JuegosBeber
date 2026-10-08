@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <%- include('partials/head', { ads: true }) %>
     <title><%= title %></title>
     <meta name="description" content="<%= typeof description !== 'undefined' ? description : 'JuegosBeber.es es la mejor web de juegos beber online con amigos. Juega gratis a la Pirámide, el Autobús, Carrera de Caballos y más.' %>">
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://juegosbeber.es/">
@@ -20,333 +19,217 @@
     <meta property="twitter:description" content="<%= typeof description !== 'undefined' ? description : 'JuegosBeber.es es la mejor web de juegos beber online con amigos. Juega gratis a la Pirámide, el Autobús, Carrera de Caballos y más.' %>">
     <meta property="twitter:image" content="https://juegosbeber.es/images/icono.png">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
-
-    <!-- Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-
-    <!-- Favicon -->
-    <link rel="icon" href="/images/icono.png" type="image/png">
-
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/style.css">
-    <meta name="google-adsense-account" content="ca-pub-8003242291729928">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8003242291729928"
-    crossorigin="anonymous"></script>
-
-    <style>
-        /* Fondo con gradiente animado */
-        @keyframes gradientBG {
-            0% { background: linear-gradient(135deg, #1a1a2e, #162447); }
-            50% { background: linear-gradient(135deg, #162447, #1a1a2e); }
-            100% { background: linear-gradient(135deg, #1a1a2e, #162447); }
-        }
-
-        body {
-            font-family: 'Roboto', sans-serif;
-            color: #f5f5f5;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            animation: gradientBG 20s ease infinite;
-            overflow-x: hidden;
-        }
-
-        header {
-            width: 100%;
-        }
-
-        .main-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            padding-bottom: 3rem;
-        }
-
-        /* Contenedor de juegos */
-        .game-selection-container {
-            display: grid; /* Changed from flex */
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Two columns, responsive */
-            gap: 2rem;
-            text-align: center;
-            padding: 2rem;
-            max-width: 1200px; /* Limit width for larger screens */
-            width: 100%;
-        }
-
-        /* Título con resplandor y animación */
-        .game-selection-container h1 {
-            grid-column: 1 / -1; /* Make title span all columns */
-            font-family: 'Montserrat', sans-serif;
-            font-size: 3rem;
-            background: linear-gradient(90deg, #ff6b81, #ff4b2b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: titlePulse 2s infinite;
-            text-shadow: 0 0 2px #ff6b81, 0 0 4px #ff4b2b, 0 0 6px #ff6b81;
-        }
-
-        @keyframes titlePulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        
-        .game-selection-container p.lead {
-            grid-column: 1 / -1; /* Make lead text span all columns */
-        }
-
-
-        /* Tarjetas de juegos */
-        .game-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            /* margin: 1rem; Removed margin to let gap handle spacing */
-            width: 100%; /* Occupy full grid column */
-            /* max-width: 400px; Removed max-width as grid handles it */
-            cursor: pointer;
-            transition: transform 0.3s ease, box-shadow 0.3s ease, border 0.3s ease;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            opacity: 0;
-            transform: translateY(20px);
-            animation: fadeInUp 0.8s forwards;
-            height: 100%; /* Ensure cards in a row have equal height */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .game-card:nth-child(2) { animation-delay: 0.2s; }
-        .game-card:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes fadeInUp {
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Hover brillante en tarjetas */
-        .game-card:hover {
-            transform: translateY(-10px) scale(1.05);
-            box-shadow: 0 10px 30px rgba(255, 75, 43, 0.6), 0 0 20px rgba(255, 107, 129, 0.5);
-            border: 1px solid rgba(255, 75, 43, 0.5);
-        }
-
-        .game-card h2 {
-            color: #ff6b81;
-            font-family: 'Montserrat', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .game-card p {
-            color: #f5f5f5aa;
-            flex-grow: 1; /* Allow paragraph to take available space */
-        }
-
-        /* Botón con reflejo animado */
-        .btn-custom {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
-            border: none;
-            padding: 0.75rem 2rem;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: white;
-            border-radius: 50px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-custom:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 30px rgba(255, 75, 43, 0.6);
-        }
-
-        .btn-custom::after {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: rgba(255,255,255,0.2);
-            transform: rotate(45deg);
-            transition: all 0.5s;
-        }
-
-        .btn-custom:hover::after {
-            top: 0;
-            left: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/home.css">
 </head>
-<body>
-    <%- include('partials/header') %>
-    <div class="main-wrapper">
-        <div class="game-selection-container">
-            <h1><%= title %></h1>
-            <p class="lead">Elige un juego para empezar</p>
-            
-            <div class="game-card" onclick="location.href='/rooms/horse-race'">
-                <h2><i class="bi bi-flag-fill"></i> Carrera de Caballos</h2>
-                <p>El clásico juego de apuestas con cartas españolas. Elige tu palo y cruza los dedos para que tu caballo llegue primero a la meta sin retroceder en los escalones.</p>
-            </div>
-            
-            <div class="game-card" onclick="location.href='/rooms/voting'">
-                <h2><i class="bi bi-check2-circle"></i> Votaciones</h2>
-                <p>¿Quién es más probable que termine en la cárcel? Descubre qué piensan tus amigos de ti en este juego de votación social y secreta.</p>
-            </div>
+<body class="home">
+    <a class="tp-skip" href="#juegos">Saltar a los juegos</a>
+    <%- include('partials/topbar') %>
 
-            <div class="game-card" onclick="location.href='/rooms/roulette'">
-                <h2><i class="bi bi-bullseye"></i> Ruleta</h2>
-                <p>Siente la adrenalina del casino. Apuesta tus puntos a números, colores o par/impar. Los ganadores reparten tragos y los perdedores pagan las consecuencias.</p>
+    <main>
+        <!-- Portada -->
+        <section class="hero">
+            <div class="hero-copy">
+                <h1 class="hero-title tp-rise">Juegos para beber, <em>cada uno desde su móvil</em></h1>
+                <p class="hero-sub tp-rise" style="--i:1">Crea una sala, pasa el enlace por el grupo y jugad todos a la vez. Sin cartas, sin descargas.</p>
+                <div class="hero-actions tp-rise" style="--i:2">
+                    <a class="tp-btn" href="#juegos">Elegir juego <i class="bi bi-arrow-down"></i></a>
+                </div>
             </div>
-
-            <div class="game-card" onclick="location.href='/rooms/pyramid'">
-                <h2><i class="bi bi-stack"></i> La Pirámide</h2>
-                <p>Un juego de memoria y faroleo. Engaña a tus amigos haciéndoles creer que tienes la carta revelada o sé honesto y mándales beber el doble.</p>
+            <div class="hero-fan" aria-hidden="true">
+                <img class="fan-card" style="--r:-22deg; --x:-118%; --y:10%; --d:0" src="/images/cartas/1_OROS.png" alt="">
+                <img class="fan-card" style="--r:-8deg; --x:-62%; --y:-2%; --d:1" src="/images/cartas/1_COPAS.png" alt="">
+                <img class="fan-card" style="--r:7deg; --x:-6%; --y:-2%; --d:2" src="/images/cartas/1_ESPADAS.png" alt="">
+                <img class="fan-card" style="--r:21deg; --x:50%; --y:10%; --d:3" src="/images/cartas/1_BASTOS.png" alt="">
+                <span class="fan-chip" style="--d:4"></span>
             </div>
+        </section>
 
-            <div class="game-card" onclick="location.href='/rooms/autobus'">
-                <h2><i class="bi bi-bus-front-fill"></i> El Autobús</h2>
-                <p>El juego de tensión definitiva. Adivina el color, si es mayor o menor, si está entre o fuera y el palo. Si fallas al final... ¡te subes al autobús!</p>
+        <!-- Juegos -->
+        <section id="juegos" class="games" aria-labelledby="juegos-title">
+            <h2 id="juegos-title" class="section-title">Elige a qué jugáis</h2>
+
+            <div class="games-grid">
+                <a class="game-tile game-tile--card tp-rise" style="--i:0" href="/rooms/autobus">
+                    <div class="tile-thumb art-deck" aria-hidden="true">
+                        <img src="/images/cartasPoker/queen_of_hearts.png" alt="" style="--r:-12deg">
+                        <img src="/images/cartasPoker/7_of_spades.png" alt="" style="--r:2deg">
+                        <img src="/images/cartasPoker/BACK.png" alt="" style="--r:14deg">
+                    </div>
+                    <div class="tile-body">
+                        <h3>El Autobús</h3>
+                        <p>Adivina color, mayor o menor, entre o fuera y palo. Si fallas, te subes al autobús.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:1" href="/rooms/pyramid">
+                    <div class="tile-thumb art-pyr" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>La Pirámide</h3>
+                        <p>Engaña a tus amigos con un farol o sé honesto y mándales beber el doble.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:2" href="/rooms/horse-race">
+                    <div class="tile-thumb art-horses" aria-hidden="true">
+                        <span class="art-finish"></span>
+                        <img src="/images/caballos/copas.webp" alt="" style="--x:8%;--y:34%;--s:.78;--d:0">
+                        <img src="/images/caballos/oros.webp" alt="" style="--x:30%;--y:18%;--s:.9;--d:1">
+                        <img src="/images/caballos/espadas.webp" alt="" style="--x:54%;--y:28%;--s:.82;--d:2">
+                        <img src="/images/caballos/bastos.webp" alt="" style="--x:74%;--y:40%;--s:.74;--d:3">
+                    </div>
+                    <div class="tile-body">
+                        <h3>Carrera de Caballos</h3>
+                        <p>Elige tu palo y cruza los dedos para que tu caballo llegue primero a la meta.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:3" href="/rooms/voting">
+                    <div class="tile-thumb art-vote" aria-hidden="true">
+                        <span style="--w:86%;--d:0" class="is-top"><b>LU</b><i class="bi bi-check-lg"></i></span>
+                        <span style="--w:58%;--d:1"><b>MA</b></span>
+                        <span style="--w:34%;--d:2"><b>IR</b></span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>Votaciones</h3>
+                        <p>¿Quién es más probable que...? Descubre qué piensan tus amigos de ti, en secreto.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:4" href="/rooms/roulette">
+                    <div class="tile-thumb art-wheel" aria-hidden="true">
+                        <span class="art-wheel-disc"><i></i></span><span class="art-wheel-ball"></span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>Ruleta</h3>
+                        <p>Apuesta a números, colores o par e impar. Los ganadores reparten tragos.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:5" href="/rooms/lamente">
+                    <div class="tile-thumb art-mind" aria-hidden="true">
+                        <span style="--r:-10deg;--x:-58%;--d:0">12</span>
+                        <span style="--r:0deg;--x:-50%;--d:1">47</span>
+                        <span style="--r:10deg;--x:-42%;--d:2" class="is-next">83</span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>La Mente</h3>
+                        <p>Cooperativo: soltad las cartas en orden ascendente sin poder hablar.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:6" href="/rooms/imitador">
+                    <div class="tile-thumb art-mimic" aria-hidden="true">
+                        <span class="art-mimic-a">DA</span><i class="bi bi-arrow-left-right"></i><span class="art-mimic-b">DA</span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>El Imitador</h3>
+                        <p>Responde como si fueras otra persona y que nadie adivine a quién imitas.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:7" href="/rooms/cofres">
+                    <div class="tile-thumb art-chests" aria-hidden="true">
+                        <span class="art-chest"></span><span class="art-chest is-gold"></span><span class="art-chest is-big"></span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>Cofres del Tesoro</h3>
+                        <p>Abre cofres misteriosos: ¿te toca beber o repartir? Ojo con los dorados.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card tp-rise" style="--i:8" href="/rooms/bolita">
+                    <div class="tile-thumb art-plinko" aria-hidden="true">
+                        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                        <i class="art-plinko-ball"></i><em></em>
+                    </div>
+                    <div class="tile-body">
+                        <h3>La Bolita</h3>
+                        <p>Suelta la bola y mira cómo rebota entre obstáculos hasta caer en un premio.</p>
+                    </div>
+                    <i class="bi bi-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
+
+                <a class="game-tile game-tile--card game-tile--external tp-rise" style="--i:9" href="http://partyfun.ddnsfree.com">
+                    <div class="tile-thumb art-words" aria-hidden="true">
+                        <span style="--r:-7deg;left:10%;top:18%">Tortilla</span>
+                        <span style="--r:5deg;left:38%;top:44%" class="is-hot">Siesta</span>
+                        <span style="--r:-4deg;left:12%;top:66%">Playa</span>
+                    </div>
+                    <div class="tile-body">
+                        <h3>PartyFun</h3>
+                        <p>Crea listas de palabras y adivinadlas por equipos. Se abre en otra web.</p>
+                    </div>
+                    <i class="bi bi-box-arrow-up-right tile-go" aria-hidden="true"></i>
+                </a>
             </div>
+        </section>
 
-            <div class="game-card" onclick="location.href='/rooms/lamente'">
-                <h2><i class="bi bi-lightbulb-fill"></i> La Mente</h2>
-                <p>¿Estás en sintonía con tus amigos? Un juego cooperativo donde debéis soltar las cartas en orden ascendente sin poder hablar entre vosotros.</p>
-            </div>
+        <!-- Cómo funciona -->
+        <section class="how" aria-labelledby="how-title">
+            <h2 id="how-title" class="section-title">Así se juega</h2>
+            <ol class="how-steps">
+                <li><span class="how-n num">1</span><div><h3>Crea una sala</h3><p>Elige el juego y ponle nombre. Si quieres, añade una contraseña.</p></div></li>
+                <li><span class="how-n num">2</span><div><h3>Comparte el enlace</h3><p>Por WhatsApp o por donde queráis. Cada uno entra desde su móvil.</p></div></li>
+                <li><span class="how-n num">3</span><div><h3>A jugar</h3><p>Todo pasa en tiempo real: cada carta, apuesta o voto llega a la vez a todos.</p></div></li>
+            </ol>
+        </section>
 
-            <div class="game-card" onclick="location.href='/rooms/imitador'">
-                <h2><i class="bi bi-person-fill"></i> El Imitador</h2>
-                <p>Ponte en la piel de otro. Responde preguntas como si fueras tu objetivo y trata de que nadie adivine a quién estás imitando.</p>
-            </div>
-
-            <!-- PartyFun Shortcut -->
-            <div class="game-card" onclick="location.href='http://partyfun.ddns.net'">
-                <h2><i class="bi bi-music-note-beamed"></i> PartyFun</h2>
-                <p>Crea listas de palabras y trata de adivinarlas por equipos.</p>
-            </div>
-
-            <div style="margin-top: 2rem; display: none;">
-                <button type="button" class="btn-custom" onclick="restartServerAndRedirect()">Reiniciar Servidor</button>
-            </div>
-        </div>
-
-        <!-- Sección de Información (Texto para AdSense/SEO) -->
-        <div class="container mt-5" style="max-width: 900px; padding: 30px; background: rgba(0,0,0,0.3); border-radius: 15px; border: 1px solid rgba(255,255,255,0.05);">
-            <h2 style="color: #ff6b81; font-family: 'Montserrat', sans-serif; font-size: 1.5rem;" class="text-center mb-4">La Mejor Plataforma de Juegos Beber Online</h2>
-            <div style="color: #ddd; font-size: 0.95rem; line-height: 1.6; text-align: justify;">
+        <!-- Información (texto SEO) -->
+        <section class="about" aria-labelledby="about-title">
+            <h2 id="about-title" class="section-title">La mejor plataforma de juegos beber online</h2>
+            <div class="about-text">
                 <p>
-                    Bienvenido a <strong>JuegosBeber.es</strong>, tu destino número uno para divertirte con amigos, ya sea en una fiesta en casa o a distancia. 
+                    Bienvenido a <strong>JuegosBeber.es</strong>, tu destino número uno para divertirte con amigos, ya sea en una fiesta en casa o a distancia.
                     Nuestra plataforma ofrece una colección de los juegos de mesa y cartas más populares, digitalizados para que puedas jugar sin necesidad de barajas físicas, dados o tableros.
                 </p>
-                
                 <p>
-                    <strong>¿Por qué jugar aquí?</strong> 
-                    Nuestra web está diseñada pensando en la comodidad: <strong>sin descargas</strong>, juega directamente desde tu navegador en cualquier dispositivo. 
-                    Gracias a nuestras salas de <strong>multijugador en tiempo real</strong>, puedes conectarte con tus amigos al instante. 
+                    <strong>¿Por qué jugar aquí?</strong>
+                    Nuestra web está diseñada pensando en la comodidad: <strong>sin descargas</strong>, juega directamente desde tu navegador en cualquier dispositivo.
+                    Gracias a nuestras salas de <strong>multijugador en tiempo real</strong>, puedes conectarte con tus amigos al instante.
                     Ofrecemos una gran <strong>variedad de juegos</strong>, desde clásicos como la Pirámide y el Autobús hasta innovaciones como El Imitador. Y lo mejor de todo, es <strong>totalmente gratis</strong>.
                 </p>
-
                 <p>
-                    Ya no tienes excusa si se te olvidaron las cartas. Simplemente crea una sala, comparte el enlace y ¡que empiece la fiesta! 
+                    Ya no tienes excusa si se te olvidaron las cartas. Simplemente crea una sala, comparte el enlace y que empiece la fiesta.
                     Recuerda siempre beber con responsabilidad y moderación. Nuestro objetivo es proporcionar entretenimiento sano y divertido para todos.
                 </p>
             </div>
-        </div>
+        </section>
 
-        <!-- FAQ Section -->
-        <div class="container mt-5" style="max-width: 900px; padding: 30px; background: rgba(0,0,0,0.3); border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5rem;">
-            <h2 style="color: #ff6b81; font-family: 'Montserrat', sans-serif; font-size: 1.5rem;" class="text-center mb-4">Preguntas Frecuentes (FAQ)</h2>
-            <div class="accordion accordion-flush" id="faqAccordion" style="background: transparent;">
-                <div class="accordion-item" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h2 class="accordion-header" id="faq-h1">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-c1" aria-expanded="false" aria-controls="faq-c1" style="background: transparent; color: #ff6b81; font-weight: bold;">
-                            ¿Es JuegosBeber.es gratuito?
-                        </button>
-                    </h2>
-                    <div id="faq-c1" class="accordion-collapse collapse" aria-labelledby="faq-h1" data-bs-parent="#faqAccordion">
-                        <div class="accordion-body" style="color: #ddd;">
-                            Sí, nuestra plataforma es totalmente gratuita. No necesitas pagar para crear salas ni para jugar con tus amigos.
-                        </div>
-                    </div>
+        <!-- Preguntas frecuentes -->
+        <section class="faq" aria-labelledby="faq-title">
+            <h2 id="faq-title" class="section-title">Preguntas frecuentes</h2>
+            <dl class="faq-list">
+                <div class="faq-item">
+                    <dt>¿Es JuegosBeber.es gratuito?</dt>
+                    <dd>Sí, nuestra plataforma es totalmente gratuita. No necesitas pagar para crear salas ni para jugar con tus amigos.</dd>
                 </div>
-                <div class="accordion-item" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h2 class="accordion-header" id="faq-h2">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-c2" aria-expanded="false" aria-controls="faq-c2" style="background: transparent; color: #ff6b81; font-weight: bold;">
-                            ¿Necesito descargar alguna aplicación?
-                        </button>
-                    </h2>
-                    <div id="faq-c2" class="accordion-collapse collapse" aria-labelledby="faq-h2" data-bs-parent="#faqAccordion">
-                        <div class="accordion-body" style="color: #ddd;">
-                            No. JuegosBeber.es es una web app progresiva. Puedes jugar directamente desde Chrome, Safari o cualquier otro navegador móvil o de escritorio sin instalaciones pesadas.
-                        </div>
-                    </div>
+                <div class="faq-item">
+                    <dt>¿Necesito descargar alguna aplicación?</dt>
+                    <dd>No. JuegosBeber.es es una web app progresiva. Puedes jugar directamente desde Chrome, Safari o cualquier otro navegador móvil o de escritorio sin instalaciones pesadas.</dd>
                 </div>
-                <div class="accordion-item" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h2 class="accordion-header" id="faq-h3">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-c3" aria-expanded="false" aria-controls="faq-c3" style="background: transparent; color: #ff6b81; font-weight: bold;">
-                            ¿Cómo juego con mis amigos?
-                        </button>
-                    </h2>
-                    <div id="faq-c3" class="accordion-collapse collapse" aria-labelledby="faq-h3" data-bs-parent="#faqAccordion">
-                        <div class="accordion-body" style="color: #ddd;">
-                            Solo tienes que elegir un juego, crear una sala y copiar el enlace que aparece. Envíalo a tus amigos por WhatsApp o cualquier otra red social y podrán unirse al instante.
-                        </div>
-                    </div>
+                <div class="faq-item">
+                    <dt>¿Cómo juego con mis amigos?</dt>
+                    <dd>Solo tienes que elegir un juego, crear una sala y copiar el enlace que aparece. Envíalo a tus amigos por WhatsApp o cualquier otra red social y podrán unirse al instante.</dd>
                 </div>
-                <div class="accordion-item" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h2 class="accordion-header" id="faq-h4">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq-c4" aria-expanded="false" aria-controls="faq-c4" style="background: transparent; color: #ff6b81; font-weight: bold;">
-                            ¿Los juegos son en tiempo real?
-                        </button>
-                    </h2>
-                    <div id="faq-c4" class="accordion-collapse collapse" aria-labelledby="faq-h4" data-bs-parent="#faqAccordion">
-                        <div class="accordion-body" style="color: #ddd;">
-                            ¡Sí! Utilizamos tecnología WebSockets para que cada carta, apuesta o voto se refleje inmediatamente en todos los dispositivos de los jugadores conectados.
-                        </div>
-                    </div>
+                <div class="faq-item">
+                    <dt>¿Los juegos son en tiempo real?</dt>
+                    <dd>Sí. Utilizamos tecnología WebSockets para que cada carta, apuesta o voto se refleje inmediatamente en todos los dispositivos de los jugadores conectados.</dd>
                 </div>
-            </div>
-        </div>
-    </div>
+            </dl>
+        </section>
+    </main>
 
-    <!-- Footer -->
-    <footer class="text-center py-4" style="background: rgba(0,0,0,0.8); width: 100%; margin-top: auto;">
-        <div class="container">
-            <p class="mb-2" style="color: #888;">&copy; 2026 JuegosBeber.es - Todos los derechos reservados.</p>
-            <div>
-                <a href="/terms" style="color: #ff6b81; text-decoration: none; margin: 0 10px;">Términos y Condiciones</a>
-                <span style="color: #555;">|</span>
-                <a href="/privacy" style="color: #ff6b81; text-decoration: none; margin: 0 10px;">Política de Privacidad</a>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script>
-        function restartServerAndRedirect() {
-            window.location.href = '/';
-            fetch('/restart', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            }).then(response => console.log('Restart request sent.'))
-            .catch(error => console.error('Error sending restart request:', error));
-        }
-    </script>
+    <%- include('partials/footer') %>
+    <%- include('partials/analytics') %>
 </body>
 </html>

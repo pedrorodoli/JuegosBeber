@@ -1,0 +1,9 @@
+<%# Barra superior de partida. Parámetros: gameType, title %>
+<header class="g-bar">
+  <a class="tp-back" href="/rooms/<%= gameType %>" aria-label="Salir a la lista de salas"><i class="bi bi-arrow-left"></i></a>
+  <div class="g-bar-title">
+    <span class="g-bar-game"><%= title %></span>
+    <% if (typeof roomId !== 'undefined' && roomId) { %><span class="g-bar-room">Sala <span class="num"><%= roomId %></span></span><% } %>
+  </div>
+  <button type="button" class="g-share" data-share aria-label="Invitar a la sala"><i class="bi bi-person-plus-fill"></i><span>Invitar</span></button>
+</header>

@@ -1,1 +1,36 @@
-/* styles handled mostly by style.css, specific tweaks here if needed */
+/* El Imitador */
+.main-wrapper { flex: 1; display: flex; justify-content: center; align-items: center; padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px)); }
+.main-wrapper > .container { width: 100%; max-width: 460px; }
+.imitador-container { display: grid; justify-items: center; text-align: center; gap: 0.5rem; }
+.im-loading { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--muted); }
+.im-title { font-size: clamp(2rem, 9vw, 2.8rem); letter-spacing: -0.045em; margin: 0; animation: tp-rise 400ms var(--ease-out) both; }
+.im-players { width: 100%; margin-top: 0.75rem; }
+.im-players h3 { font: 600 0.82rem/1 var(--font-body); color: var(--muted); margin: 0 0 0.75rem; letter-spacing: 0.02em; }
+.im-players h3 .num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-left: 0.35rem; border-radius: 11px; background: var(--felt-600); color: var(--chalk); font-size: 0.78rem; }
+.im-player-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.im-player-list .g-chip { animation: tp-pop 280ms var(--ease-out) both; }
+.im-note { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.6rem 0.9rem; border-radius: var(--r-md); background: rgba(243, 201, 105, 0.12); border: 1px solid rgba(243, 201, 105, 0.35); color: var(--warn); font-size: 0.9rem; font-weight: 500; text-align: left; }
+.im-admin { margin-top: 1.5rem; }
+.im-admin .btn-custom { width: 100%; }
+
+/* Carta del objetivo: se gira al repartir */
+.target-card { width: min(80vw, 320px); aspect-ratio: 5 / 6.4; margin-top: 1rem; perspective: 1000px; }
+.target-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transform: rotateY(180deg); }
+.target-card.is-new .target-inner { animation: im-flip 900ms var(--ease-out) 200ms both; }
+@keyframes im-flip { from { transform: rotateY(0deg) translateY(-8px); } to { transform: rotateY(180deg); } }
+.target-face { position: absolute; inset: 0; border-radius: 22px; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: grid; place-items: center; align-content: center; padding: 1.5rem; }
+.target-back {
+  background:
+    repeating-linear-gradient(45deg, rgba(238,241,234,0.06) 0 10px, transparent 10px 20px),
+    linear-gradient(160deg, var(--felt-500), var(--felt-700));
+  border: 1px solid var(--line-strong);
+  color: var(--chalk-2); font-size: 3.5rem;
+}
+.target-front {
+  transform: rotateY(180deg);
+  background: var(--chalk); color: var(--felt-900);
+  box-shadow: 0 1px 0 #fff inset, 0 30px 50px -24px rgba(2,14,10,0.95);
+}
+.instruction { margin: 0 0 0.75rem; font-weight: 600; color: var(--felt-500); }
+.target-name { font: 800 clamp(2.4rem, 12vw, 3.4rem)/0.98 var(--font-display); letter-spacing: -0.05em; overflow-wrap: anywhere; text-wrap: balance; }
+.im-hint { display: inline-flex; align-items: center; gap: 0.45rem; margin: 1rem 0 0; color: var(--muted); font-size: 0.88rem; }
