@@ -201,6 +201,154 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
 
 
 /* =====================================================================
+   Aviso de "te toca"
+   El servidor manda 'turn:yours' cuando te llega el turno y 'turn:skipped'
+   cuando salta a alguien desconectado.
+   - Mirando la partida: vibración corta.
+   - Pestaña en segundo plano: notificación del navegador (si has dado
+     permiso), vibración y el título de la pestaña parpadeando.
+   La notificación se enseña con un service worker propio (/turn-sw.js,
+   solo para /game/) porque en Android no se puede usar new Notification().
+   ===================================================================== */
+window.tpTurnAlerts = (function () {
+  'use strict';
+  const TURN_GAMES = ['autobus', 'cofres', 'bolita', 'pyramid', 'lamente', 'horse-race'];
+  const ICON = '/images/favicon.png';
+  const TAG = 'jb-turn';
+  const ASK_KEY = 'tpTurnAskDismissed';
+  const canNotify = 'Notification' in window && window.isSecureContext;
+  const canSw = canNotify && 'serviceWorker' in navigator;
+  let regPromise = null;
+
+  // Registro del service worker de avisos, esperando a que esté activo
+  function getReg() {
+    if (!canSw) return Promise.resolve(null);
+    if (!regPromise) {
+      regPromise = navigator.serviceWorker.register('/turn-sw.js', { scope: '/game/' }).then((reg) => {
+        const sw = reg.installing || reg.waiting;
+        if (reg.active || !sw) return reg;
+        return new Promise((resolve) => {
+          sw.addEventListener('statechange', () => { if (sw.state === 'activated') resolve(reg); });
+          setTimeout(() => resolve(reg), 4000);
+        });
+      }).catch(() => null);
+    }
+    return regPromise;
+  }
+
+  function showNotification(text) {
+    const opts = { body: text, icon: ICON, badge: ICON, tag: TAG, renotify: true, vibrate: [300, 120, 300], data: { url: location.href } };
+    getReg().then((reg) => {
+      if (reg && reg.active) return reg.showNotification('JuegosBeber', opts);
+      throw new Error('sin service worker');
+    }).catch(() => {
+      // Ordenadores sin service worker: notificación directa
+      try {
+        const n = new Notification('JuegosBeber', { body: text, icon: ICON, tag: TAG });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch (e) {}
+    });
+  }
+
+  function closeNotifications() {
+    if (!regPromise) return;
+    regPromise.then((reg) => {
+      if (reg && reg.getNotifications) reg.getNotifications({ tag: TAG }).then((ns) => ns.forEach((n) => n.close())).catch(() => {});
+    });
+  }
+
+  // Título de la pestaña parpadeando hasta que vuelvas
+  let baseTitle = null;
+  let flashTimer = null;
+  function flashTitle(text) {
+    if (flashTimer) return;
+    baseTitle = document.title;
+    let on = true;
+    document.title = '🔔 ' + text;
+    flashTimer = setInterval(() => { on = !on; document.title = on ? '🔔 ' + text : baseTitle; }, 1000);
+  }
+  function stopFlash() {
+    if (!flashTimer) return;
+    clearInterval(flashTimer);
+    flashTimer = null;
+    document.title = baseTitle;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { stopFlash(); closeNotifications(); }
+  });
+
+  function vibrate(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+  }
+
+  function onTurn(data) {
+    const text = (data && data.text) || '¡Te toca!';
+    if (!document.hidden) { vibrate(150); return; }
+    vibrate([300, 120, 300]);
+    flashTitle(text);
+    if (canNotify && Notification.permission === 'granted') showNotification(text);
+  }
+
+  function onSkipped(data) {
+    const names = (data && data.names) || [];
+    if (!names.length || !window.tpToast) return;
+    const who = names.join(', ');
+    window.tpToast(names.length > 1 ? `${who} no están: se les salta el turno.` : `${who} no está: se le salta el turno.`, { duration: 4000 });
+  }
+
+  // Tarjeta para pedir permiso (el navegador solo deja pedirlo al pulsar un botón)
+  function offerPermission() {
+    if (!canNotify || Notification.permission !== 'default') return;
+    const m = location.pathname.match(/^\/game\/([^/]+)\//);
+    if (!m || TURN_GAMES.indexOf(decodeURIComponent(m[1])) === -1) return;
+    try { if (localStorage.getItem(ASK_KEY)) return; } catch (e) {}
+    if (document.querySelector('.tp-turn-ask')) return;
+
+    let stack = document.querySelector('.tp-toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.className = 'tp-toast-stack';
+      stack.setAttribute('role', 'status');
+      stack.setAttribute('aria-live', 'polite');
+      document.body.appendChild(stack);
+    }
+    const card = document.createElement('div');
+    card.className = 'tp-toast tp-turn-ask';
+    card.innerHTML =
+      '<p><i class="bi bi-bell-fill" aria-hidden="true"></i> ¿Te avisamos cuando te toque, aunque estés en otra app?</p>' +
+      '<div class="tp-turn-ask-actions">' +
+        '<button type="button" class="tp-btn tp-btn--sm tp-btn--ghost" data-no>Ahora no</button>' +
+        '<button type="button" class="tp-btn tp-btn--sm" data-yes>Avisarme</button>' +
+      '</div>';
+    const close = () => {
+      card.classList.add('is-leaving');
+      card.addEventListener('animationend', () => card.remove(), { once: true });
+    };
+    card.querySelector('[data-no]').addEventListener('click', () => {
+      try { localStorage.setItem(ASK_KEY, '1'); } catch (e) {}
+      close();
+    });
+    card.querySelector('[data-yes]').addEventListener('click', () => {
+      close();
+      Promise.resolve(Notification.requestPermission()).then((p) => {
+        if (p === 'granted') { getReg(); window.tpToast && window.tpToast('Listo: te avisaremos cuando te toque.'); }
+        else { try { localStorage.setItem(ASK_KEY, '1'); } catch (e) {} }
+      }).catch(() => {});
+    });
+    stack.appendChild(card);
+  }
+
+  function bind(sock) {
+    sock.on('turn:yours', onTurn);
+    sock.on('turn:skipped', onSkipped);
+    if (canNotify && Notification.permission === 'granted') getReg(); // dejarlo listo antes de que haga falta
+    setTimeout(() => { if (document.body) offerPermission(); }, 1500);
+  }
+
+  return { bind: bind };
+})();
+
+/* =====================================================================
    (clon) Salas con contraseña
    - Al abrir /game/<juego>/<sala> se comprueba si la sala pide contraseña.
      Si la pide y no la tenemos (o es incorrecta), se pregunta AQUÍ, antes
@@ -253,6 +401,7 @@ window.tpShow = function (el, display) { if (el && el.style.display !== display)
   function bindRejoin(sock) {
     if (sock.__tpRejoinBound) return;
     sock.__tpRejoinBound = true;
+    if (window.tpTurnAlerts) window.tpTurnAlerts.bind(sock);
     let seen = sock.connected;
     sock.on('connect', () => {
       if (seen && sock.__tpLastJoin) sock.emit('joinRoom', sock.__tpLastJoin);

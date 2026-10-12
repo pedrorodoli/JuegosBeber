@@ -308,6 +308,10 @@ input, select, textarea { font-size: 16px; }
 }
 .tp-toast.is-error { background: var(--chip); color: var(--chip-ink); }
 .tp-toast.is-leaving { animation: tp-toast-out 220ms ease-in both; }
+.tp-turn-ask p { margin: 0 0 0.75rem; line-height: 1.35; }
+.tp-turn-ask p .bi { color: var(--chip); margin-right: 0.25rem; }
+.tp-turn-ask-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tp-turn-ask .tp-btn--ghost { color: var(--felt-900); box-shadow: inset 0 0 0 1.5px rgba(8, 32, 26, 0.25); }
 
 /* ---------- Diálogo propio (contraseña) ---------- */
 .tp-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-sheet); display: flex; align-items: flex-end; justify-content: center;

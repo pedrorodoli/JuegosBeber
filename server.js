@@ -322,6 +322,7 @@ function roomEmit(roomId, event, payload) {
         const s = io.sockets.sockets.get(id);
         if (s) s.emit(event, maskUuids(payload, roomId, s.userUuid));
     }
+    if (event === 'roomState') afterRoomState(roomId, payload);
 }
 
 function getSanitizedGameState(gameState) {
@@ -1206,6 +1207,7 @@ io.on('connection', (socket) => {
                 console.log(`[Server] Reconnecting player: ${user.name} (${user.uuid}) to RoomId: ${roomId}. Old socket: ${player.id}, New socket: ${socket.id}`);
                 player.id = socket.id;
                 player.online = true;
+                delete player.offlineSince;
                 if (user.name && user.name !== 'Anónimo') {
                     player.name = user.name;
                 }
@@ -1271,10 +1273,11 @@ io.on('connection', (socket) => {
             cancelPendingRemoval(roomId, user.uuid);
         }
         
-        if (gameType === 'bolita' && gameState.phase === 'playing') {
+        if ((gameType === 'bolita' || gameType === 'cofres') && gameState.phase === 'playing') {
+            // Cofres también: quien vuelve después de que le quitaran por desconexión no volvía a tener turno
             if (gameState.turnOrder && !gameState.turnOrder.includes(user.uuid)) {
                 gameState.turnOrder.push(user.uuid);
-                console.log(`[Server] Mid-game join for La Bolita: Added ${user.name} (${user.uuid}) to turnOrder.`);
+                console.log(`[Server] Mid-game join for ${gameType}: Added ${user.name} (${user.uuid}) to turnOrder.`);
             }
         }
 
@@ -2169,6 +2172,7 @@ io.on('connection', (socket) => {
                 const player = gameState.players.find(p => p.id === socket.id);
                 if (!player) return;
                 player.online = false;
+                player.offlineSince = Date.now(); // para saltarle el turno si no vuelve en TURN_SKIP_SECONDS
                 await db.updateGameState(roomId, gameState);
                 console.log(`[Server] ${player.name} (${player.uuid}) se ha desconectado de ${roomId}. Margen de ${PLAYER_GRACE_SECONDS}s para volver.`);
                 const stateToSend = getSanitizedGameState(gameState);
@@ -2932,6 +2936,7 @@ async function deleteRoomCompletely(roomId) {
     await db.deleteGameState(roomId);
     await db.deleteRoom(roomId);
     forgetRoom(roomId);
+    forgetTurns(roomId);
     io.emit('roomListUpdate');
 }
 setInterval(async () => {
@@ -3073,4 +3078,213 @@ function removePlayerFromState(gs, uuid) {
 function drawAutobusCard(gs) {
     if (!gs.deck || !gs.deck.length) gs.deck = shuffleDeck(createPokerDeck());
     return gs.deck.pop();
+}
+
+// =====================================================================
+// Turnos de jugadores desconectados y aviso de "te toca"
+// Si la partida está esperando a alguien desconectado (le toca, tiene que
+// responder a un reto, repartir tragos...), se le salta cuando lleva
+// TURN_SKIP_SECONDS fuera. El margen cubre bloquear el móvil o cambiar de app
+// un momento. El jugador sigue en la sala hasta PLAYER_GRACE_SECONDS: si vuelve,
+// juega en su siguiente turno con sus tragos intactos.
+// Además, a quien le llega el turno se le manda 'turn:yours' para que el
+// navegador le avise aunque tenga la pestaña en segundo plano (ver ui.js).
+// =====================================================================
+const TURN_SKIP_SECONDS = Number(process.env.TURN_SKIP_SECONDS) || 30;
+const AUTOBUS_TURN_PHASES = ['red-or-black', 'higher-or-lower', 'inside-or-outside', 'suit-guess'];
+const turnSkipTimers = {};
+const notifiedTurns = {}; // roomId -> Set de turnos ya avisados
+
+function findPlayer(gs, uuid) {
+    return gs.players.find(p => p.uuid === uuid);
+}
+
+// A quién espera la partida ahora mismo: [{ uuid, key, text, busy, action }]
+// - key identifica "este turno", para avisar una sola vez aunque el estado se reenvíe.
+// - busy: hay una animación en curso (carta del autobús, bolita cayendo) y todavía no se puede saltar.
+function waitingFor(gs) {
+    if (!gs || !Array.isArray(gs.players)) return [];
+    if (gs.game === 'autobus') {
+        if (!AUTOBUS_TURN_PHASES.includes(gs.phase)) return [];
+        const p = gs.players[gs.currentPlayerIndex];
+        return p ? [{ uuid: p.uuid, key: p.uuid, text: '¡Te toca en el Autobús!', busy: !!gs.currentCard }] : [];
+    }
+    if (gs.game === 'cofres' || gs.game === 'bolita') {
+        if (gs.phase !== 'playing' || !Array.isArray(gs.turnOrder)) return [];
+        const uuid = gs.turnOrder[gs.currentPlayerIndex];
+        if (!uuid) return [];
+        const text = gs.game === 'cofres' ? '¡Te toca abrir un cofre!' : '¡Te toca tirar la bolita!';
+        return [{ uuid, key: uuid, text, busy: !!(gs.ballState && gs.ballState.dropping) }];
+    }
+    if (gs.game === 'pyramid') {
+        if (gs.phase !== 'playing') return [];
+        const out = [];
+        const action = (gs.pendingActions || [])[0];
+        if (action) {
+            out.push({
+                uuid: action.target.uuid,
+                key: `${action.target.uuid}#reto${gs.currentCardIndex}:${action.sender.uuid}:${action.handCardIndex}`,
+                text: `${action.sender.name} te manda beber: acepta o desafía`,
+                action: true
+            });
+        }
+        const finished = gs.playersFinishedThisRound || [];
+        for (const p of gs.players) {
+            if (gs.playerHands && gs.playerHands[p.uuid] && !finished.includes(p.uuid)) {
+                out.push({ uuid: p.uuid, key: `${p.uuid}#carta${gs.currentCardIndex}`, text: 'Nueva carta en la Pirámide: te toca jugar o pasar' });
+            }
+        }
+        return out;
+    }
+    if (gs.game === 'lamente') {
+        if (gs.phase !== 'playing' || !Array.isArray(gs.remainingPlayers)) return [];
+        return gs.remainingPlayers.map(uuid => ({ uuid, key: `${uuid}#mente`, text: 'La Mente ha empezado: mira tu número' }));
+    }
+    if (gs.game === 'horse-race') {
+        if (gs.phase !== 'distributing') return [];
+        const done = gs.winnersDistributedDrinks || [];
+        const pending = [...new Set((gs.winners || []).map(w => w.uuid))].filter(u => !done.includes(u));
+        return pending.map(uuid => ({ uuid, key: `${uuid}#reparte`, text: '¡Has ganado la carrera! Reparte tus tragos' }));
+    }
+    return [];
+}
+
+function isAway(p, now) {
+    return !!p && p.online === false && !!p.offlineSince && now - p.offlineSince >= TURN_SKIP_SECONDS * 1000;
+}
+
+// Salta a quien la partida espera y lleva demasiado desconectado. Devuelve sus nombres.
+function skipAwayPlayers(gs, now) {
+    const skipped = [];
+    for (const w of waitingFor(gs)) {
+        const p = findPlayer(gs, w.uuid);
+        if (w.busy || !isAway(p, now)) continue;
+        if (gs.game === 'autobus') {
+            // Siguiente que no haya ganado y no esté también fuera
+            let next = -1;
+            for (let i = 1; i < gs.players.length; i++) {
+                const j = (gs.currentPlayerIndex + i) % gs.players.length;
+                if (!gs.players[j].hasWon && !isAway(gs.players[j], now)) { next = j; break; }
+            }
+            if (next === -1) continue; // nadie más puede jugar: se espera a que vuelva
+            p.currentCards = []; // como al fallar: cuando vuelva, empieza de cero
+            p.message = '';
+            gs.currentPlayerIndex = next;
+            gs.players[next].message = '';
+            gs.currentCard = null;
+            gs.phase = 'red-or-black';
+        } else if (gs.game === 'cofres' || gs.game === 'bolita') {
+            let next = -1;
+            for (let i = 1; i < gs.turnOrder.length; i++) {
+                const j = (gs.currentPlayerIndex + i) % gs.turnOrder.length;
+                const c = findPlayer(gs, gs.turnOrder[j]);
+                if (c && !isAway(c, now)) { next = j; break; }
+            }
+            if (next === -1) continue;
+            gs.currentPlayerIndex = next;
+        } else if (gs.game === 'pyramid') {
+            if (w.action) {
+                // El reto se anula y la carta vuelve a estar disponible para quien la mandó
+                const a = gs.pendingActions.shift();
+                (gs.actionLog = gs.actionLog || []).push(`${p.name} no está: se anula el trago que le mandó ${a.sender.name}.`);
+            } else {
+                gs.playersFinishedThisRound.push(p.uuid);
+                (gs.actionLog = gs.actionLog || []).push(`${p.name} no está: pasa.`);
+            }
+        } else if (gs.game === 'lamente') {
+            gs.remainingPlayers = gs.remainingPlayers.filter(u => u !== p.uuid);
+            if (!gs.remainingPlayers.length) {
+                gs.phase = 'finished';
+                delete gs.lastCorrectGuess;
+                gs.finishedByLeave = true;
+            }
+        } else if (gs.game === 'horse-race') {
+            (gs.winnersDistributedDrinks = gs.winnersDistributedDrinks || []).push(p.uuid);
+            const all = (gs.winners || []).every(x => gs.winnersDistributedDrinks.includes(x.uuid));
+            if (all) gs.phase = 'finished';
+        } else {
+            continue;
+        }
+        if (!skipped.includes(p.name)) skipped.push(p.name);
+    }
+    return skipped;
+}
+
+// Programa la próxima comprobación para cuando venza el margen del primer desconectado al que se espera
+function scheduleTurnCheck(roomId, gs, onlyFuture) {
+    if (turnSkipTimers[roomId]) { clearTimeout(turnSkipTimers[roomId]); delete turnSkipTimers[roomId]; }
+    const now = Date.now();
+    let due = Infinity;
+    for (const w of waitingFor(gs)) {
+        const p = findPlayer(gs, w.uuid);
+        if (w.busy || !p || p.online !== false || !p.offlineSince) continue;
+        const at = p.offlineSince + TURN_SKIP_SECONDS * 1000;
+        if (onlyFuture && at <= now) continue;
+        due = Math.min(due, at);
+    }
+    if (due === Infinity) return;
+    turnSkipTimers[roomId] = roomTimeout(roomId, () => runTurnCheck(roomId), Math.max(500, due - now));
+}
+
+async function runTurnCheck(roomId) {
+    delete turnSkipTimers[roomId];
+    try {
+        const room = await db.getRoomById(roomId);
+        const gs = room && await db.getGameState(roomId);
+        if (!gs || !Array.isArray(gs.players)) return;
+        // Si no queda nadie conectado no se avanza: la partida espera a que vuelva alguien
+        if (!gs.players.some(p => p.online !== false)) return;
+        const skipped = skipAwayPlayers(gs, Date.now());
+        if (!skipped.length) return scheduleTurnCheck(roomId, gs, true);
+        const lamenteWon = gs.finishedByLeave;
+        delete gs.finishedByLeave;
+        await db.updateGameState(roomId, gs);
+        console.log(`[Server] Turno saltado en ${roomId} (${gs.game}): ${skipped.join(', ')} lleva más de ${TURN_SKIP_SECONDS}s desconectado.`);
+        roomEmit(roomId, 'turn:skipped', { names: skipped });
+        if (lamenteWon) {
+            roomEmit(roomId, 'gameOver', {
+                win: true,
+                results: gs.players.map(p => ({ name: p.name, number: p.number, uuid: p.uuid })).sort((a, b) => a.number - b.number),
+                correctlyGuessedPlayers: gs.lastPlayerOrder || []
+            });
+        }
+        // La pirámide decide ella misma si ya han actuado todos y toca revelar carta
+        if (gs.game === 'pyramid' && pyramidRoundCheck) return await pyramidRoundCheck(roomId);
+        const stateToSend = getSanitizedGameState(gs);
+        stateToSend.roomAdminId = room.creatorId;
+        roomEmit(roomId, 'roomState', stateToSend);
+    } catch (err) {
+        console.error('[Server] Error saltando turno:', err.message);
+    }
+}
+
+// Avisa con 'turn:yours' a quien acaba de recibir el turno (solo una vez por turno)
+function notifyTurns(roomId, gs) {
+    const prev = notifiedTurns[roomId] || new Set();
+    const current = new Set();
+    const ids = io.sockets.adapter.rooms.get(roomId);
+    for (const w of waitingFor(gs)) {
+        current.add(w.key);
+        if (prev.has(w.key) || !ids) continue;
+        for (const id of ids) {
+            const s = io.sockets.sockets.get(id);
+            if (s && s.userUuid === w.uuid) s.emit('turn:yours', { game: gs.game, text: w.text });
+        }
+    }
+    if (current.size) notifiedTurns[roomId] = current; else delete notifiedTurns[roomId];
+}
+
+function afterRoomState(roomId, gs) {
+    try {
+        notifyTurns(roomId, gs);
+        scheduleTurnCheck(roomId, gs, false);
+    } catch (err) {
+        console.error('[Server] Error revisando turnos:', err.message);
+    }
+}
+
+function forgetTurns(roomId) {
+    if (turnSkipTimers[roomId]) clearTimeout(turnSkipTimers[roomId]);
+    delete turnSkipTimers[roomId];
+    delete notifiedTurns[roomId];
 }
