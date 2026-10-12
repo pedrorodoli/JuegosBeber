@@ -104,6 +104,12 @@ async function updateRoom(roomId, roomData) {
     return result;
 }
 
+// Cambia el anfitrión de la sala (cuando el anterior se desconecta)
+async function setRoomCreator(roomId, creatorId) {
+    const [result] = await pool.query('UPDATE rooms SET creatorId = ? WHERE id = ?', [creatorId, roomId]);
+    return result;
+}
+
 async function deleteRoom(roomId) {
     const [result] = await pool.query('DELETE FROM rooms WHERE id = ?', [roomId]);
     return result;
@@ -163,6 +169,7 @@ module.exports = {
     getRoomById,
     getAllRooms,
     updateRoom,
+    setRoomCreator,
     deleteRoom,
     deleteAllRooms, // <-- Export the new function
     createGameState,

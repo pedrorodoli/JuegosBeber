@@ -315,9 +315,16 @@ function regenerateBolitaRound(gameState) {
 // Envía un evento a todos los de la sala. Cada uno recibe su uuid real y los
 // de los demás cambiados por un alias (ver roomSync.js), para que nadie pueda
 // hacerse pasar por otro jugador ni por el anfitrión.
+// Anfitrión actual de cada sala, para que todos los roomState lo lleven (antes
+// muchos no lo incluían y los botones de anfitrión desaparecían hasta el siguiente)
+const roomHosts = new Map(); // roomId -> uuid del anfitrión
+
 function roomEmit(roomId, event, payload) {
     const ids = io.sockets.adapter.rooms.get(roomId);
     if (!ids) return;
+    if (event === 'roomState' && payload && typeof payload === 'object' && roomHosts.has(roomId)) {
+        payload = { ...payload, roomAdminId: roomHosts.get(roomId) };
+    }
     for (const id of ids) {
         const s = io.sockets.sockets.get(id);
         if (s) s.emit(event, maskUuids(payload, roomId, s.userUuid));
@@ -951,7 +958,7 @@ app.post('/api/rooms/:roomId/access', async (req, res) => {
         const room = await db.getRoomById(req.params.roomId);
         if (!room) return res.status(404).json({ exists: false });
         const { password, uuid } = req.body || {};
-        const needsPassword = !!room.password && room.creatorId !== uuid;
+        const needsPassword = !!room.password && room.creatorId !== uuid && !(await isRoomMember(room.id, uuid));
         const ok = !needsPassword || (typeof password === 'string' && password === room.password);
         res.json({ exists: true, gameType: room.gameType, needsPassword, ok });
     } catch (err) {
@@ -1182,8 +1189,9 @@ io.on('connection', (socket) => {
             return socket.emit('error', { message: 'La sala no existe o el tipo de juego no coincide.' });
         }
 
-        // Password check
-        if (room.password && room.password !== user.password && room.creatorId !== user.uuid) {
+        // Password check (quien ya estaba en la partida vuelve sin contraseña: p. ej. el
+        // anfitrión original después de que el control haya pasado a otro jugador)
+        if (room.password && room.password !== user.password && room.creatorId !== user.uuid && !(await isRoomMember(roomId, user.uuid))) {
             console.log(`[Server] Error: Contraseña incorrecta para RoomId: ${roomId}, User: ${user.name}`);
             return socket.emit('error', { message: 'Contraseña incorrecta.' });
         }
@@ -1195,6 +1203,8 @@ io.on('connection', (socket) => {
         socket.userUuid = user.uuid;
         registerUuid(roomId, room.creatorId);
         registerUuid(roomId, user.uuid);
+        roomHosts.set(roomId, room.creatorId);
+        if (user.uuid === room.creatorId) cancelHostTransfer(roomId); // el anfitrión ha vuelto a tiempo
         let gameState = await db.getGameState(roomId);
         if (!gameState) {
             console.log(`[Server] Error: Estado de juego no encontrado para RoomId: ${roomId}`);
@@ -2179,6 +2189,7 @@ io.on('connection', (socket) => {
                 stateToSend.roomAdminId = room.creatorId;
                 roomEmit(roomId, 'roomState', stateToSend);
                 if (room.gameType !== 'imitador') schedulePlayerRemoval(roomId, player.uuid, socket.id);
+                if (player.uuid === room.creatorId) scheduleHostTransfer(roomId, player.uuid);
             } catch (err) {
                 console.error('[Server] Error al desconectar:', err.message);
             }
@@ -2937,6 +2948,8 @@ async function deleteRoomCompletely(roomId) {
     await db.deleteRoom(roomId);
     forgetRoom(roomId);
     forgetTurns(roomId);
+    cancelHostTransfer(roomId);
+    roomHosts.delete(roomId);
     io.emit('roomListUpdate');
 }
 setInterval(async () => {
@@ -3014,6 +3027,60 @@ function schedulePlayerRemoval(roomId, uuid, socketId) {
             console.error('[Server] Error quitando jugador:', err.message);
         }
     }, PLAYER_GRACE_SECONDS * 1000);
+}
+
+// =====================================================================
+// Anfitrión que se desconecta: el control pasa al siguiente jugador que entró
+// después de él (el "jugador 2"; si ese tampoco está conectado, el 3, etc.).
+// Se espera HOST_GRACE_SECONDS para que bloquear el móvil un momento no le
+// quite el anfitrión. Si vuelve después, sigue en la partida como jugador normal.
+// =====================================================================
+const HOST_GRACE_SECONDS = Number(process.env.HOST_GRACE_SECONDS) || 30;
+const pendingHostTransfers = {};
+
+async function isRoomMember(roomId, uuid) {
+    if (!isValidUuid(uuid)) return false;
+    const gs = await db.getGameState(roomId);
+    return !!(gs && Array.isArray(gs.players) && gs.players.some(p => p.uuid === uuid));
+}
+
+function cancelHostTransfer(roomId) {
+    if (pendingHostTransfers[roomId]) { clearTimeout(pendingHostTransfers[roomId]); delete pendingHostTransfers[roomId]; }
+}
+
+// Siguiente jugador conectado en orden de llegada, empezando por el que entró justo después del anfitrión
+function nextHostCandidate(players, hostUuid) {
+    const idx = players.findIndex(p => p.uuid === hostUuid);
+    const ordered = idx === -1 ? players : players.slice(idx + 1).concat(players.slice(0, idx));
+    return ordered.find(p => p.uuid !== hostUuid && p.online !== false) || null;
+}
+
+function scheduleHostTransfer(roomId, hostUuid) {
+    cancelHostTransfer(roomId);
+    pendingHostTransfers[roomId] = roomTimeout(roomId, async () => {
+        delete pendingHostTransfers[roomId];
+        try {
+            const room = await db.getRoomById(roomId);
+            if (!room || room.creatorId !== hostUuid) return; // la sala ya no existe o ya tiene otro anfitrión
+            const gameState = await db.getGameState(roomId);
+            if (!gameState || !Array.isArray(gameState.players)) return;
+            const host = gameState.players.find(p => p.uuid === hostUuid);
+            if (host && host.online !== false) return; // ha vuelto
+            const next = nextHostCandidate(gameState.players, hostUuid);
+            // Nadie conectado a quien pasárselo: se vuelve a mirar más tarde
+            if (!next) return scheduleHostTransfer(roomId, hostUuid);
+            await db.setRoomCreator(roomId, next.uuid);
+            roomHosts.set(roomId, next.uuid);
+            console.log(`[Server] El anfitrión de ${roomId} se ha desconectado: ahora lo es ${next.name} (${next.uuid}).`);
+            const stateToSend = getSanitizedGameState(gameState);
+            stateToSend.roomAdminId = next.uuid;
+            stateToSend.id = roomId;
+            roomEmit(roomId, 'roomState', stateToSend);
+            roomEmit(roomId, 'hostChanged', { uuid: next.uuid, name: next.name });
+        } catch (err) {
+            console.error('[Server] Error pasando el anfitrión:', err.message);
+        }
+    }, HOST_GRACE_SECONDS * 1000);
 }
 
 // Quita al jugador y deja el turno bien puesto (antes podía quedarse apuntando a nadie y la partida se colgaba)

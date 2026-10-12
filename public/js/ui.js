@@ -407,6 +407,12 @@ window.tpTurnAlerts = (function () {
       if (seen && sock.__tpLastJoin) sock.emit('joinRoom', sock.__tpLastJoin);
       seen = true;
     });
+    // El anfitrión se ha desconectado y el control pasa a otro jugador
+    sock.on('hostChanged', (d) => {
+      if (!d) return;
+      const me = sock.__tpLastJoin && sock.__tpLastJoin.user && sock.__tpLastJoin.user.uuid;
+      if (window.tpToast) window.tpToast(d.uuid === me ? 'El anfitrión se ha desconectado: ahora eres tú el anfitrión.' : `El anfitrión se ha desconectado: ahora lo es ${d.name || 'otro jugador'}.`, { duration: 5000 });
+    });
   }
 
   function patch(io) {
