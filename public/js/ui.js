@@ -25,7 +25,9 @@
     const ttl = opts.duration || 3200;
     setTimeout(() => {
       el.classList.add('is-leaving');
-      el.addEventListener('animationend', () => el.remove(), { once: true });
+      const done = () => el.remove();
+      el.addEventListener('animationend', done, { once: true });
+      setTimeout(done, 400); // por si no hay animación (p. ej. .tp-static)
     }, ttl);
   }
 
@@ -173,6 +175,7 @@ window.tpScrollTurnIntoView = function (list) {
   const sig = (el) => el.tagName + '|' + (typeof el.className === 'string' ? el.className.replace(/\btp-static\b/, '') : '') + '|' + (el.getAttribute('style') || '') + '|' + el.innerHTML.slice(0, 3000);
   function mark(el, now) {
     if (el.closest && el.closest('svg')) return;
+    if (el.closest && el.closest('.tp-toast-stack')) return; // los avisos tienen que animarse para poder borrarse
     const s = sig(el);
     const last = seen.get(s);
     seen.set(s, now);
@@ -322,7 +325,9 @@ window.tpTurnAlerts = (function () {
       '</div>';
     const close = () => {
       card.classList.add('is-leaving');
-      card.addEventListener('animationend', () => card.remove(), { once: true });
+      const done = () => card.remove();
+      card.addEventListener('animationend', done, { once: true });
+      setTimeout(done, 400);
     };
     card.querySelector('[data-no]').addEventListener('click', () => {
       try { localStorage.setItem(ASK_KEY, '1'); } catch (e) {}
